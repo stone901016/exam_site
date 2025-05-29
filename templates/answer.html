@@ -1,18 +1,63 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head><meta charset="utf-8"></head>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <title>第 {{ question.id }} 題 答案</title>
+</head>
 <body>
-  <h2>第 {{ question.id }} 題 答案</h2>
-  <pre>{{ result }}</pre>
-  {% if result.plots %}
-    <h3>圖表</h3>
-    {% for key,fn in result.plots.items() %}
-      <div>
-        <p>{{ key }}</p>
-        <img src="{{ url_for('static',filename='results/' + fn) }}" alt="{{ key }}">
+  <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
+
+  {# 中文對照字典 #}
+  {% set cn_map = {} %}
+  {% set cn_map_plots = {} %}
+  {% if question.id == 3 %}
+    {% set cn_map = {
+      "sensitivity_std": "靈敏度 (收益標準差)",
+      "prob_profit_gt_100": "P(收益>100) 機率"
+    } %}
+    {% set cn_map_plots = {
+      "dist": "Profit 分布比較圖",
+      "p_gt100": "P(Profit>100) 變化圖"
+    } %}
+  {% endif %}
+
+  <div class="answer-box">
+    {% for key, val in result.items() if key != 'plots' %}
+      <div style="margin-bottom: 1em;">
+        <strong>{{ cn_map[key] if cn_map.get(key) else key }}</strong>：
+        {% if val is mapping %}
+          <table class="result-table">
+            <thead><tr><th>參數</th><th>數值</th></tr></thead>
+            <tbody>
+              {% for k, v in val.items() %}
+                <tr>
+                  <td>{{ k }}</td>
+                  <td>{{ '{:.4f}'.format(v) if v is number else v }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          {{ val }}
+        {% endif %}
       </div>
     {% endfor %}
+  </div>
+
+  {% if result.plots %}
+    <h3 class="question-title">圖表</h3>
+    <div class="plot-box">
+      {% for label, fn in result.plots.items() %}
+        <div class="plot-item">
+          <img src="{{ url_for('static', filename='results/' + fn) }}" alt="{{ label }}">
+          <p>{{ cn_map_plots[label] if cn_map_plots.get(label) else label }}</p>
+        </div>
+      {% endfor %}
+    </div>
   {% endif %}
-  <p><a href="{{ url_for('question', qid=question.id) }}">重選檔案</a> | <a href="{{ url_for('index') }}">回首頁</a></p>
+
+  <p><a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
+     <a href="{{ url_for('index') }}">回首頁</a></p>
 </body>
 </html>
