@@ -1,5 +1,56 @@
-body { font-family: "Noto Sans TC", sans-serif; padding: 20px; }
-h1,h2 { color: #333; }
-ul { list-style: none; padding: 0; }
-li { margin: 8px 0; }
-select, button { margin-top: 10px; }
+/* 全域 */
+body { font-family: "Noto Sans TC", sans-serif; padding: 20px; line-height: 1.6; }
+
+/* 題目標題 */
+.question-title { font-size: 1.8em; margin-bottom: 0.5em; }
+
+/* 子題文字 */
+.sub-question { font-size: 1.2em; margin: 1em 0 0.5em; }
+
+/* 按鈕和下拉選單 */
+select, button, input[type="file"] {
+  font-size: 1em;
+  padding: 8px;
+  margin-top: 5px;
+}
+
+/* 答案框 */
+.answer-box {
+  background: #f9f9f9;
+  border: 1px solid #ccc;
+  padding: 15px;
+  margin: 1em 0;
+  font-size: 1.2em;
+}
+
+/* 結果表格 */
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+.result-table th, .result-table td {
+  border: 1px solid #aaa;
+  padding: 8px;
+  text-align: center;
+}
+.result-table th {
+  background: #e0e0e0;
+}
+
+/* 圖表區 */
+.plot-box {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 1em;
+}
+.plot-item img {
+  max-width: 300px;
+  border: 1px solid #ccc;
+}
+.plot-item p {
+  text-align: center;
+  margin-top: 0.5em;
+  font-weight: bold;
+}
