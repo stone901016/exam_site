@@ -25,7 +25,7 @@ def compute_var_cvar(arr, alpha):
     return v, cvar
 
 def solve(file_path):
-    # 1. 讀檔並篩正值
+    # 讀檔與篩正值
     df = pd.read_excel(file_path)
     amounts = df["賠償金額"].dropna().astype(float)
     amounts = amounts[amounts > 0]
@@ -35,7 +35,7 @@ def solve(file_path):
         ratios = (amounts / df["保險金額"].astype(float)).dropna()
     ratios = ratios[ratios > 0]
 
-    # 分布候選
+    # 挑最佳分布
     candidates = {
         "lognorm":     stats.lognorm,
         "gamma":       stats.gamma,
@@ -52,61 +52,4 @@ def solve(file_path):
         key = f"{int(α*100)}%"
         v_a, c_a = compute_var_cvar(amounts, α)
         v_r, c_r = compute_var_cvar(ratios, α)
-        var_hist_amt[key], cvar_hist_amt[key] = v_a, c_a
-        var_hist_rat[key], cvar_hist_rat[key] = v_r, c_r
-
-    # 蒙地卡羅 VaR/CVaR
-    Nsim = 100_000
-    sim_amt = candidates[best_amt].rvs(*params_amt, size=Nsim)
-    sim_rat = candidates[best_rat].rvs(*params_rat, size=Nsim)
-    var_mc_amt, cvar_mc_amt = {}, {}
-    var_mc_rat, cvar_mc_rat = {}, {}
-    for α in levels:
-        key = f"{int(α*100)}%"
-        v_a, c_a = compute_var_cvar(sim_amt, α)
-        v_r, c_r = compute_var_cvar(sim_rat, α)
-        var_mc_amt[key], cvar_mc_amt[key] = v_a, c_a
-        var_mc_rat[key], cvar_mc_rat[key] = v_r, c_r
-
-    # 繪圖（英文字樣式）
-    os.makedirs("static/results", exist_ok=True)
-    fn_amt = "q1_pdf_amount.png"
-    plt.figure(figsize=(8,5))
-    x = np.linspace(amounts.min(), amounts.max(), 200)
-    plt.plot(x, candidates[best_amt].pdf(x, *params_amt))
-    plt.xlabel("Amount")
-    plt.ylabel("PDF")
-    plt.tight_layout()
-    plt.savefig(os.path.join("static","results",fn_amt))
-    plt.close()
-
-    fn_rat = "q1_pdf_ratio.png"
-    plt.figure(figsize=(8,5))
-    x2 = np.linspace(ratios.min(), ratios.max(), 200)
-    plt.plot(x2, candidates[best_rat].pdf(x2, *params_rat))
-    plt.xlabel("Ratio")
-    plt.ylabel("PDF")
-    plt.tight_layout()
-    plt.savefig(os.path.join("static","results",fn_rat))
-    plt.close()
-
-    return {
-        "最佳分布（賠償金額）": best_amt,
-        "分布參數（賠償金額）": params_amt,
-        "歷史VaR（賠償金額）": var_hist_amt,
-        "歷史CVaR（賠償金額）": cvar_hist_amt,
-        "MC VaR（賠償金額）": var_mc_amt,
-        "MC CVaR（賠償金額）": cvar_mc_amt,
-
-        "最佳分布（賠款率）": best_rat,
-        "分布參數（賠款率）": params_rat,
-        "歷史VaR（賠款率）": var_hist_rat,
-        "歷史CVaR（賠款率）": cvar_hist_rat,
-        "MC VaR（賠款率）": var_mc_rat,
-        "MC CVaR（賠款率）": cvar_mc_rat,
-
-        "plots": {
-            "pdf_amount": fn_amt,
-            "pdf_ratio":  fn_rat
-        }
-    }
+        var_hist_amt[key], cvar_hist_amt
