@@ -8,6 +8,30 @@
 <body>
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
+{% if question.id == 1 %}
+  {% set cn_map = {
+    "best_dist_amt":   "最佳分布（賠償金額）",
+    "best_params_amt": "參數（賠償金額）",
+    "aic_amt":         "AIC（賠償金額）",
+    "best_dist_rat":   "最佳分布（賠款率）",
+    "best_params_rat": "參數（賠款率）",
+    "aic_rat":         "AIC（賠款率）",
+    "var_hist_amt":    "歷史 VaR（賠償金額）",
+    "cvar_hist_amt":   "歷史 CVaR（賠償金額）",
+    "var_hist_rat":    "歷史 VaR（賠款率）",
+    "cvar_hist_rat":   "歷史 CVaR（賠款率）",
+    "var_mc_amt":      "MC VaR（賠償金額）",
+    "cvar_mc_amt":     "MC CVaR（賠償金額）",
+    "var_mc_rat":      "MC VaR（賠款率）",
+    "cvar_mc_rat":     "MC CVaR（賠款率）"
+  } %}
+  {% set cn_map_plots = {
+    "pdf_amount": "賠償金額 PDF",
+    "pdf_ratio":  "賠款率 PDF"
+  } %}
+{% endif %}
+
+  
   {# 中文對照字典 #}
   {% set cn_map = {} %}
   {% set cn_map_plots = {} %}
