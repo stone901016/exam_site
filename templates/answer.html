@@ -1,28 +1,84 @@
-...
-{% for key, val in result.items() if key != 'plots' %}
-  <div style="margin-bottom:1em;">
-    <strong class="sub-question">{{ key }}</strong>
-    {% if val is mapping %}
-      <table class="result-table">
-        <thead><tr><th>參數</th><th>數值{% if "賠款率" in key %}（%）{% endif %}</th></tr></thead>
-        <tbody>
-          {% for k,v in val.items() %}
-            <tr>
-              <td>{{ k }}</td>
-              <td>
-                {% if "賠款率" in key %}
-                  {{ '{:.4f}'.format(v) }}
-                {% else %}
-                  {{ '{:.4f}'.format(v) }}
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      {{ val }}
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <title>第 {{ question.id }} 題：{{ question.title }} — 答案</title>
+</head>
+<body>
+  <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
+
+  <div class="answer-box">
+    {# Q1 摘要顯示 #}
+    {% if question.id == 1 %}
+      <h3 class="sub-question">摘要</h3>
+      <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
+      <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
     {% endif %}
+
+    {# 其餘結果以表格顯示 #}
+    {% for key, val in result.items() if key != 'plots' %}
+      {% if question.id != 1 or (question.id == 1 and key not in [
+            "最佳分布（賠償金額）",
+            "分布參數（賠償金額）",
+            "最佳分布（賠款率）",
+            "分布參數（賠款率）"
+         ]) %}
+        <div style="margin-bottom:1em;">
+          <strong class="sub-question">{{ key }}</strong>
+          {% if val is mapping %}
+            <table class="result-table">
+              <thead>
+                <tr>
+                  <th>參數</th>
+                  <th>數值{% if "賠款率" in key %}（%）{% endif %}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for k, v in val.items() %}
+                  <tr>
+                    <td>{{ k }}</td>
+                    <td>{{ '{:.4f}'.format(v) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            {{ val }}
+          {% endif %}
+        </div>
+      {% endif %}
+    {% endfor %}
   </div>
-{% endfor %}
-...
+
+  {# 圖表區 #}
+  {% if result.plots %}
+    <h3 class="sub-question">圖表</h3>
+    <div class="plot-box">
+      {% for label, fn in result.plots.items() %}
+        <div class="plot-item">
+          <img src="{{ url_for('static', filename='results/' + fn) }}" alt="{{ label }}">
+          <p>
+            {% if label == 'pdf_amount' or 'amount' in label %}
+              賠償金額機率密度圖
+            {% elif label == 'pdf_ratio' or 'ratio' in label %}
+              賠款率機率密度圖
+            {% elif label == '分布比較圖' %}
+              分布比較圖
+            {% elif label == '機率變化圖' %}
+              機率變化圖
+            {% else %}
+              {{ label }}
+            {% endif %}
+          </p>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <p>
+    <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
+    <a href="{{ url_for('index') }}">回首頁</a>
+  </p>
+</body>
+</html>
