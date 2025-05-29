@@ -1,111 +1,105 @@
 # solvers/question3.py
-import os
-import re
+import os, re
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 
 def extract_num(val):
-    """從字串中擷取第一組數值（含千分位與小數點），回傳 float 或 None。"""
-    if pd.isna(val):
-        return None
+    """從任意格式字串擷取第一組數值（含千分位、負號、小數點）"""
+    if pd.isna(val): return None
     s = str(val)
-    # 找到形如 1,234,567.89 或 123.45 或 123 的字串
     m = re.search(r"[-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?", s)
-    if not m:
-        return None
+    if not m: return None
     num = m.group(0).replace(",", "")
-    try:
-        return float(num)
-    except:
-        return None
+    try: return float(num)
+    except: return None
 
 def solve(file_path):
-    """
-    第三題：Profit.xls
-    1) 嘗試 header=0~2，對每欄用正則提數值，找出至少三個含數值的欄位作 S, V, P
-    2) P mean=45/55 時模擬 Profit 分布 & 靈敏度
-    3) P mean 固定，SD=8,10,12時計算 P(Profit>100) 並繪折線圖
-    """
-    df = None
-    numeric_cols = None
+    # 1) 全表讀取
+    df0 = pd.read_excel(file_path, header=None)
+    nrows, ncols = df0.shape
 
-    # 逐層 header 嘗試
-    for h in [0,1,2]:
-        try:
-            tmp = pd.read_excel(file_path, header=h)
-        except Exception:
-            continue
-        # 為每欄擷取數值，並計算有效筆數
-        counts = {}
-        for col in tmp.columns:
-            nums = tmp[col].apply(extract_num)
-            counts[col] = nums.notna().sum()
-        # 篩出「至少一筆數值」的欄位
-        cand = [col for col, cnt in counts.items() if cnt>0]
-        if len(cand)>=3:
-            # 按照可擷取數量排序，取前三
-            cand.sort(key=lambda c: counts[c], reverse=True)
-            numeric_cols = cand[:3]
-            df = tmp
-            break
+    # 2) 定位 S, V
+    S = V = None
+    for r in range(nrows):
+        for c in range(ncols):
+            v = str(df0.iat[r,c]).strip().lower()
+            if v == "s":
+                S = extract_num(df0.iat[r, c+1])
+            elif v == "v":
+                V = extract_num(df0.iat[r, c+1])
+    if S is None or V is None:
+        raise KeyError("找不到 S 或 V 的位置，請確認 Excel 標題")
 
-    if numeric_cols is None:
-        raise KeyError("Profit.xls 數值欄位不足：無法找到至少三個可擷取數值的欄位")
+    # 3) 定位 P 欄
+    Pcol = None; Pheader_row = None
+    for r in range(nrows):
+        for c in range(ncols):
+            v = str(df0.iat[r,c]).strip().lower()
+            if v in ("p","price","價格"):
+                Pcol = c; Pheader_row = r
+                break
+        if Pcol is not None: break
+    if Pcol is None:
+        raise KeyError("找不到 P/Price/價格 欄位標題")
 
-    # 取欄並轉為純 float series
-    S_col, V_col, P_col = numeric_cols
-    S = df[S_col].apply(extract_num).dropna().astype(float)
-    V = df[V_col].apply(extract_num).dropna().astype(float)
-    P = df[P_col].apply(extract_num).dropna().astype(float)
+    # 4) 擷取 P series
+    P_list = []
+    for rr in range(Pheader_row+1, nrows):
+        num = extract_num(df0.iat[rr, Pcol])
+        if num is not None:
+            P_list.append(num)
+    if len(P_list) < 1:
+        raise KeyError("P 欄下方找不到任何數值")
 
-    S_mean = float(S.mean())
-    V_mean = float(V.mean())
-    P_mean = float(P.mean())
-    P_sd   = float(P.std())
+    P = np.array(P_list)
+    P_mean, P_sd = P.mean(), P.std()
 
+    # 5) 模擬 Profit = S * V * P
     N = 100_000
-
-    # (1) P mean = 45,55 時 Profit 模擬
     profits = {}
-    for m in [45,55]:
-        prof = S_mean * V_mean * norm.rvs(loc=m, scale=P_sd, size=N)
-        profits[m] = prof
+    for m in (45, 55):
+        sim = norm.rvs(loc=m, scale=P_sd, size=N)
+        profits[m] = S * V * sim
 
-    # 繪分布比較圖
+    # 6) 繪分布比較圖
+    os.makedirs("static/results", exist_ok=True)
     fn_dist = "q3_dist.png"
-    plt.figure()
+    plt.figure(figsize=(8,5))
     for m, prof in profits.items():
         plt.hist(prof, bins=50, alpha=0.6, label=f"mean={m}")
-    plt.title("Profit 分布比較")
     plt.legend()
+    plt.xlabel("Profit")
+    plt.ylabel("Frequency")
+    plt.tight_layout()
     plt.savefig(os.path.join("static","results",fn_dist))
     plt.close()
 
-    # (1b) 計算靈敏度 (Std)
+    # 7) 計算靈敏度（Std）
     sensitivity = {m: float(np.std(profits[m])) for m in profits}
 
-    # (2) P mean 固定，SD=8/10/12 計算 P(Profit>100)
+    # 8) SD=8,10,12時計算 P(Profit>100)
     prob_gt100 = {}
-    for sd in [8,10,12]:
-        prof = S_mean * V_mean * norm.rvs(loc=P_mean, scale=sd, size=N)
-        prob_gt100[sd] = float(np.mean(prof>100))
+    for sd in (8, 10, 12):
+        sim = norm.rvs(loc=P_mean, scale=sd, size=N)
+        prof = S * V * sim
+        prob_gt100[sd] = float((prof > 100).mean())
 
-    # 繪折線圖
+    # 9) 繪折線圖
     fn_prob = "q3_p_gt100.png"
-    plt.figure()
-    xs = list(prob_gt100.keys())
-    ys = list(prob_gt100.values())
+    plt.figure(figsize=(8,5))
+    xs, ys = zip(*sorted(prob_gt100.items()))
     plt.plot(xs, ys, marker='o')
-    plt.title("P(Profit > 100) vs P SD")
     plt.xlabel("P SD")
-    plt.ylabel("Probability")
+    plt.ylabel("P(Profit>100)")
+    plt.tight_layout()
     plt.savefig(os.path.join("static","results",fn_prob))
     plt.close()
 
+    # 10) 回傳
     return {
-        "靈敏度（Std）": sensitivity,
+        "靈敏度（收益標準差）": sensitivity,
         "P(Profit>100) 機率": prob_gt100,
-        "plots": {"dist": fn_dist, "p_gt100": fn_prob}
+        "plots": {"分布比較圖": fn_dist, "機率變化圖": fn_prob}
     }
