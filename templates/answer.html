@@ -9,7 +9,7 @@
     {% for key,fn in result.plots.items() %}
       <div>
         <p>{{ key }}</p>
-        <img src="{{ url_for('static','results/' + fn) }}" alt="{{ key }}">
+        <img src="{{ url_for('static',filename='results/' + fn) }}" alt="{{ key }}">
       </div>
     {% endfor %}
   {% endif %}
