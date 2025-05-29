@@ -2,65 +2,62 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import lognorm, poisson, beta
+from scipy.stats import norm
 
 def solve(_):
-    # 1. 參數 (取自 Crystal Ball Report)
-    P_mean, P_sd = 50.0, 10.0
-    S_lambda     = 10.0
-    V_alpha, V_beta = 3, 2
-
-    # 2. 轉換 Lognormal 參數
-    sigma_ln = np.sqrt(np.log(1 + (P_sd / P_mean) ** 2))
-    mu_ln    = np.log(P_mean) - 0.5 * sigma_ln**2
+    # Assumptions (from Profit.xls Crystal Ball)
+    S = 10.0
+    V = 0.6
+    P_mean_file = 50.0
+    P_sd_file   = 10.0
 
     N = 100_000
 
-    # 3. 抽樣
-    P_sim = lognorm(s=sigma_ln, scale=np.exp(mu_ln)).rvs(size=N)
-    S_sim = poisson(mu=S_lambda).rvs(size=N)
-    V_sim = beta(a=V_alpha, b=V_beta).rvs(size=N)
+    # 1) SD=10，P mean=45,55 → Profit 分布 & 靈敏度
+    profits = {}
+    for m in (45, 55):
+        p_sim = norm.rvs(loc=m, scale=P_sd_file, size=N)
+        profits[m] = S * V * p_sim
 
-    # 4. Profit
-    profit = P_sim * S_sim * V_sim
-
-    # 5. 統計量
-    mean_profit = float(np.mean(profit))
-    std_profit  = float(np.std(profit))
-    prob_gt100  = float(np.mean(profit > 100))
-
-    # 6. 繪圖 (放大兩倍)
+    # 繪直方圖
     os.makedirs("static/results", exist_ok=True)
-
-    # 直方圖
-    fn_hist = "q3_hist.png"
+    fn_hist = "q3_dist.png"
     plt.figure(figsize=(16,10))
-    plt.hist(profit, bins=50, color="#4C72B0", alpha=0.7)
+    for m, prof in profits.items():
+        plt.hist(prof, bins=50, alpha=0.6, label=f"mean={m}")
+    plt.legend()
     plt.xlabel("Profit")
     plt.ylabel("Frequency")
     plt.tight_layout()
     plt.savefig(os.path.join("static","results",fn_hist))
     plt.close()
 
-    # CDF
-    fn_cdf = "q3_cdf.png"
-    sorted_p = np.sort(profit)
-    cdf = np.arange(1, N+1) / N
+    # 靈敏度 (Std)
+    sensitivity = {m: float(np.std(profits[m])) for m in profits}
+
+    # 2) mean=50，SD=8,10,12 → P(Profit>100) 機率
+    prob_gt100 = {}
+    for sd in (8, 10, 12):
+        p_sim = norm.rvs(loc=P_mean_file, scale=sd, size=N)
+        prof = S * V * p_sim
+        prob_gt100[sd] = float((prof > 100).mean())
+
+    # 繪折線圖
+    fn_prob = "q3_p_gt100.png"
     plt.figure(figsize=(16,10))
-    plt.plot(sorted_p, cdf, color="#55A868")
-    plt.xlabel("Profit")
-    plt.ylabel("Cumulative Probability")
+    xs, ys = zip(*sorted(prob_gt100.items()))
+    plt.plot(xs, ys, marker='o')
+    plt.xlabel("P SD")
+    plt.ylabel("P(Profit > 100)")
     plt.tight_layout()
-    plt.savefig(os.path.join("static","results",fn_cdf))
+    plt.savefig(os.path.join("static","results",fn_prob))
     plt.close()
 
-    # 7. 回傳結果
     return {
-        "平均 Profit": mean_profit,
-        "Profit 標準差": std_profit,
-        "P(Profit > 100)": prob_gt100,
+        "靈敏度（收益標準差）": sensitivity,
+        "P(Profit>100) 機率": prob_gt100,
         "plots": {
-            "直方圖": fn_hist,
-            "累積機率圖": fn_cdf
+            "分布比較圖": fn_hist,
+            "機率變化圖": fn_prob
         }
     }
