@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"></head>
+<body>
+  <h2>第 {{ question.id }} 題：{{ question.title }}</h2>
+  <form method="post">
+    <label>選擇輸入檔案：</label>
+    <select name="data_file">
+      <option value="">── 請選擇 ──</option>
+      {% for f in files %}
+        <option value="{{ f }}">{{ f }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">產生答案</button>
+  </form>
+  {% with msgs = get_flashed_messages() %}
+    {% if msgs %}
+      <ul style="color:red;">
+        {% for m in msgs %}<li>{{ m }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+  <p><a href="{{ url_for('index') }}">回首頁</a></p>
+</body>
+</html>

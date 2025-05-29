@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><link rel="stylesheet" href="{{ url_for('static','css/style.css') }}"></head>
+<body>
+  <h1>期末考模擬題目列表</h1>
+  <ul>
+    {% for q in questions %}
+      <li><a href="{{ url_for('question', qid=q.id) }}">第 {{ q.id }} 題：{{ q.title }}</a></li>
+    {% endfor %}
+  </ul>
+</body>
+</html>

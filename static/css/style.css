@@ -1,0 +1,5 @@
+body { font-family: "Noto Sans TC", sans-serif; padding: 20px; }
+h1,h2 { color: #333; }
+ul { list-style: none; padding: 0; }
+li { margin: 8px 0; }
+select, button { margin-top: 10px; }
