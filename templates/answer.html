@@ -38,7 +38,13 @@
                 {% for k, v in val.items() %}
                   <tr>
                     <td>{{ k }}</td>
-                    <td>{{ '{:.4f}'.format(v) }}</td>
+                    <td>
+                      {% if "賠款率" in key %}
+                        {{ '{:.4f}'.format(v) }} %
+                      {% else %}
+                        {{ '{:.4f}'.format(v) }}
+                      {% endif %}
+                    </td>
                   </tr>
                 {% endfor %}
               </tbody>
@@ -57,15 +63,15 @@
     <div class="plot-box">
       {% for label, fn in result.plots.items() %}
         <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' + fn) }}" alt="{{ label }}">
+          <img src="{{ url_for('static', filename='results/' + fn) }}" alt="{{ label }}" width="1000">
           <p>
-            {% if label == 'pdf_amount' or 'amount' in label %}
+            {% if 'amount' in label %}
               賠償金額機率密度圖
-            {% elif label == 'pdf_ratio' or 'ratio' in label %}
+            {% elif 'ratio' in label %}
               賠款率機率密度圖
-            {% elif label == '分布比較圖' %}
+            {% elif '分布比較圖' in label %}
               分布比較圖
-            {% elif label == '機率變化圖' %}
+            {% elif '機率變化圖' in label %}
               機率變化圖
             {% else %}
               {{ label }}
