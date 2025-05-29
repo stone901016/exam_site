@@ -6,17 +6,17 @@
   <title>第 {{ question.id }} 題：{{ question.title }}</title>
 </head>
 <body>
-  <h2>第 {{ question.id }} 題：{{ question.title }}</h2>
+  <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }}</h2>
 
   <form method="post" enctype="multipart/form-data">
-    <label>上傳對應檔案：</label><br>
-    <input type="file" name="data_file" accept=".xls,.xlsx,.csv"><br><br>
+    <p class="sub-question">上傳對應檔案：</p>
+    <input type="file" name="data_file" accept=".xls,.xlsx,.csv"><br>
     <button type="submit">產生答案</button>
   </form>
 
   {% with msgs = get_flashed_messages() %}
     {% if msgs %}
-      <ul style="color: red;">
+      <ul style="color: red; margin-top: 1em;">
         {% for m in msgs %}
           <li>{{ m }}</li>
         {% endfor %}
