@@ -1,69 +1,45 @@
 # solvers/question3.py
-import os, re
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 
-def extract_num(val):
-    """從任意格式字串擷取第一組數值（含千分位、負號、小數點）"""
-    if pd.isna(val): return None
-    s = str(val)
-    m = re.search(r"[-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?", s)
-    if not m: return None
-    num = m.group(0).replace(",", "")
-    try: return float(num)
-    except: return None
-
 def solve(file_path):
-    # 1) 全表讀取
-    df0 = pd.read_excel(file_path, header=None)
-    nrows, ncols = df0.shape
+    """
+    Profit.xls 解題（更通用）：
+    1. 直接讀取帶標頭的 sheet，找到前三個 numeric 欄
+    2. 第一欄當 S，第二當 V，第三當 P 樣本
+    3. P mean=45/55 模擬 Profit，畫比較圖並算 Std
+    4. P 平均固定，SD=8,10,12時計算 P(Profit>100)，畫折線圖
+    """
+    # 1) 讀標頭 sheet
+    df = pd.read_excel(file_path, header=0)
+    # 選出所有 numeric 欄
+    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    if len(num_cols) < 3:
+        raise KeyError(f"Profit.xls 數值欄位不足：只有找到 {len(num_cols)} 個 numeric 欄")
+    # 拿前三欄
+    col_S, col_V, col_P = num_cols[:3]
 
-    # 2) 定位 S, V
-    S = V = None
-    for r in range(nrows):
-        for c in range(ncols):
-            v = str(df0.iat[r,c]).strip().lower()
-            if v == "s":
-                S = extract_num(df0.iat[r, c+1])
-            elif v == "v":
-                V = extract_num(df0.iat[r, c+1])
-    if S is None or V is None:
-        raise KeyError("找不到 S 或 V 的位置，請確認 Excel 標題")
+    # 2) 解析 S, V, P
+    S_vals = df[col_S].dropna().astype(float)
+    V_vals = df[col_V].dropna().astype(float)
+    P_vals = df[col_P].dropna().astype(float)
+    # 若 S、V 多筆取平均
+    S = float(S_vals.mean())
+    V = float(V_vals.mean())
+    P_mean = float(P_vals.mean())
+    P_sd   = float(P_vals.std())
 
-    # 3) 定位 P 欄
-    Pcol = None; Pheader_row = None
-    for r in range(nrows):
-        for c in range(ncols):
-            v = str(df0.iat[r,c]).strip().lower()
-            if v in ("p","price","價格"):
-                Pcol = c; Pheader_row = r
-                break
-        if Pcol is not None: break
-    if Pcol is None:
-        raise KeyError("找不到 P/Price/價格 欄位標題")
-
-    # 4) 擷取 P series
-    P_list = []
-    for rr in range(Pheader_row+1, nrows):
-        num = extract_num(df0.iat[rr, Pcol])
-        if num is not None:
-            P_list.append(num)
-    if len(P_list) < 1:
-        raise KeyError("P 欄下方找不到任何數值")
-
-    P = np.array(P_list)
-    P_mean, P_sd = P.mean(), P.std()
-
-    # 5) 模擬 Profit = S * V * P
     N = 100_000
+    # (3) P mean=45,55 模擬 Profit
     profits = {}
     for m in (45, 55):
-        sim = norm.rvs(loc=m, scale=P_sd, size=N)
-        profits[m] = S * V * sim
+        sim_p = norm.rvs(loc=m, scale=P_sd, size=N)
+        profits[m] = S * V * sim_p
 
-    # 6) 繪分布比較圖
+    # 繪分布比較
     os.makedirs("static/results", exist_ok=True)
     fn_dist = "q3_dist.png"
     plt.figure(figsize=(8,5))
@@ -76,17 +52,17 @@ def solve(file_path):
     plt.savefig(os.path.join("static","results",fn_dist))
     plt.close()
 
-    # 7) 計算靈敏度（Std）
+    # 靈敏度
     sensitivity = {m: float(np.std(profits[m])) for m in profits}
 
-    # 8) SD=8,10,12時計算 P(Profit>100)
+    # (4) SD=8,10,12 時 P(Profit>100)
     prob_gt100 = {}
     for sd in (8, 10, 12):
-        sim = norm.rvs(loc=P_mean, scale=sd, size=N)
-        prof = S * V * sim
+        sim_p = norm.rvs(loc=P_mean, scale=sd, size=N)
+        prof  = S * V * sim_p
         prob_gt100[sd] = float((prof > 100).mean())
 
-    # 9) 繪折線圖
+    # 繪折線圖
     fn_prob = "q3_p_gt100.png"
     plt.figure(figsize=(8,5))
     xs, ys = zip(*sorted(prob_gt100.items()))
@@ -97,7 +73,7 @@ def solve(file_path):
     plt.savefig(os.path.join("static","results",fn_prob))
     plt.close()
 
-    # 10) 回傳
+    # 回傳
     return {
         "靈敏度（收益標準差）": sensitivity,
         "P(Profit>100) 機率": prob_gt100,
