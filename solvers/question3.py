@@ -5,51 +5,43 @@ import matplotlib
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 
-# —— 通用字型設定 ——  
-matplotlib.rcParams['font.family'] = 'sans-serif'  
-matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans']  
-matplotlib.rcParams['axes.unicode_minus'] = False  
+# 字型設定：通用 sans-serif，確保中文可顯示
+matplotlib.rcParams['font.family'] = 'sans-serif'
+matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans']
+matplotlib.rcParams['axes.unicode_minus'] = False
 
 def solve(_):
-    """
-    第三題：
-    1) 假設 S=10, V=0.6, P_SD=10 固定，
-       P_mean 分別為 45、55 → 繪製「盈利圖」與「靈敏度分析圖」
-    2) P_mean=50 固定，P_SD 分別為 8、10、12 → 繪製 P(Profit>100) 機率變化圖
-    """
     S, V = 10.0, 0.6
     SD_const = 10.0
     mean_values = [45, 55]
     N = 100_000
 
-    # 1) 計算 Profit 及其標準差
+    # 1) 計算 Profit & Std
     profits    = {m: S * V * m for m in mean_values}
     sensitivity= {m: S * V * SD_const for m in mean_values}
 
     os.makedirs("static/results", exist_ok=True)
 
-    # —— 盈利圖 ——  
+    #── 盈利圖 ──
     fn_profit = "q3_profit_bar.png"
     plt.figure(figsize=(16,10))
-    ax = plt.gca()
-    ax.grid(True, linestyle='--', alpha=0.5)
+    ax = plt.gca(); ax.grid(True, linestyle='--', alpha=0.5)
     xs = [str(m) for m in mean_values]
     ys = [profits[m] for m in mean_values]
     ax.bar(xs, ys, color=['#4C72B0','#55A868'])
-    ax.set_xlabel("P 平均值")            # 中文 X 軸
-    ax.set_ylabel("Profit")             # 中文或英文 Y 軸都能正確顯示
+    ax.set_xlabel("P 平均值")
+    ax.set_ylabel("Profit")
     plt.tight_layout()
     plt.savefig(os.path.join("static","results",fn_profit))
     plt.close()
 
-    # —— 靈敏度分析圖 ——  
+    #── 靈敏度圖 ──  （注意 key 名稱要對應模板）
     fn_sens = "q3_sensitivity_bar.png"
     plt.figure(figsize=(16,10))
-    ax = plt.gca()
-    ax.grid(True, linestyle='--', alpha=0.5)
+    ax = plt.gca(); ax.grid(True, linestyle='--', alpha=0.5)
     ys2 = [sensitivity[m] for m in mean_values]
     ax.bar(xs, ys2, color=['#C44E52','#8172B2'])
-    ax.set_xlabel("P 平均值")           
+    ax.set_xlabel("P 平均值")
     ax.set_ylabel("Profit 標準差 (靈敏度)")
     plt.tight_layout()
     plt.savefig(os.path.join("static","results",fn_sens))
@@ -58,10 +50,10 @@ def solve(_):
     explain1 = (
         f"當 P 平均值從 {mean_values[0]} → {mean_values[1]} 時，"
         f"Profit 從 {profits[mean_values[0]]:.1f} 增至 {profits[mean_values[1]]:.1f}，"
-        f"且收益標準差 (靈敏度) 為 {sensitivity[mean_values[0]]:.1f}。"
+        f"收益標準差 (靈敏度) 為 {sensitivity[mean_values[0]]:.1f}。"
     )
 
-    # 2) P_mean=50，SD = 8,10,12 時機率變化
+    # 2) P_mean=50, SD=8,10,12 機率變化
     P_mean_fixed = 50.0
     prob_gt100 = {}
     for sd in [8, 10, 12]:
@@ -69,14 +61,13 @@ def solve(_):
         prof = S * V * sim
         prob_gt100[sd] = float((prof > 100).mean())
 
+    #── 機率變化圖 ──
     fn_prob = "q3_p_gt100.png"
     plt.figure(figsize=(16,10))
-    ax = plt.gca()
-    ax.grid(True, linestyle='--', alpha=0.5)
-    xs2 = sorted(prob_gt100.keys())
-    ys3 = [prob_gt100[sd] for sd in xs2]
+    ax = plt.gca(); ax.grid(True, linestyle='--', alpha=0.5)
+    xs2 = sorted(prob_gt100.keys()); ys3 = [prob_gt100[sd] for sd in xs2]
     ax.plot(xs2, ys3, marker='o')
-    ax.set_xlabel("P 標準差")           
+    ax.set_xlabel("P 標準差")
     ax.set_ylabel("P(Profit > 100)")
     plt.tight_layout()
     plt.savefig(os.path.join("static","results",fn_prob))
@@ -84,19 +75,19 @@ def solve(_):
 
     explain2 = (
         f"當 P 標準差由 {xs2[0]} → {xs2[-1]} 時，"
-        f"P(Profit>100) 由 {prob_gt100[xs2[0]]:.4f} 增至 {prob_gt100[xs2[-1]]:.4f}。"
+        f"P(Profit>100) 由 {prob_gt100[xs2[0]]:.4f} → {prob_gt100[xs2[-1]]:.4f}。"
     )
 
     return {
-        "盈利圖檔案":             fn_profit,
-        "靈敏度分析圖檔案":       fn_sens,
-        "說明（盈利＆靈敏度）":    explain1,
-        "P(Profit>100) 機率":     prob_gt100,
-        "說明（機率變化）":        explain2,
-        "機率變化圖檔案":         fn_prob,
+        "盈利圖檔案":       fn_profit,
+        "靈敏度圖檔案":     fn_sens,       # ← 這裡必須跟模板一致
+        "機率變化圖檔案":   fn_prob,
+        "說明（盈利＆靈敏度）": explain1,
+        "P(Profit>100) 機率":   prob_gt100,
+        "說明（機率變化）":     explain2,
         "plots": {
-            "盈利圖":         fn_profit,
-            "靈敏度分析圖":   fn_sens,
-            "機率變化圖":     fn_prob
+            "盈利圖":       fn_profit,
+            "靈敏度圖":     fn_sens,
+            "機率變化圖":   fn_prob
         }
     }
