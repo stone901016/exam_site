@@ -1,38 +1,60 @@
 # solvers/question4.py
 import os
+import re
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+def extract_num(val):
+    """從字串中擷取第一組數字，支援千分位、小數、百分比"""
+    if pd.isna(val): 
+        return None
+    s = str(val).replace(',', '')
+    m = re.search(r"[-+]?\d*\.?\d+", s)
+    if not m: 
+        return None
+    try:
+        return float(m.group())
+    except:
+        return None
+
 def solve(file_path):
-    # 1) 嘗試用 xlrd 讀 .xls
+    # 1) 用 xlrd 讀 .xls
     try:
         xls = pd.ExcelFile(file_path, engine='xlrd')
     except ImportError:
         raise ImportError(
             "第4題需要 xlrd 才能讀取 .xls，"
-            "請在 requirements.txt 加入 xlrd>=2.0.1 並重新部署。"
+            "請在 requirements.txt 加入 xlrd>=2.0.1 並重啟部署。"
         )
 
-    # 2) 找到第一個 non‐empty sheet
+    # 2) 自動找第一個有資料的 sheet
     df = None
-    for sheet in xls.sheet_names:
-        tmp = xls.parse(sheet)
+    for sh in xls.sheet_names:
+        tmp = xls.parse(sh)
         if not tmp.empty:
             df = tmp
             break
     if df is None or df.empty:
-        raise KeyError("第4題：找不到任何有資料的工作表，請確認 Excel 內有資料")
+        raise KeyError("第4題：找不到任何含資料的工作表，請確認 Excel 內有資料")
 
-    # 3) 只保留 numeric 欄位，排除文字欄位
-    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    if len(num_cols) < 2:
-        raise KeyError("第4題：數值欄位不足，需至少兩個 numeric 欄位作為 FundReturn、StockReturn")
-    # 取前兩個 numeric 欄位作為基金與股票報酬率
-    r_fund  = df[num_cols[0]].dropna().astype(float)
-    r_stock = df[num_cols[1]].dropna().astype(float)
-    if r_fund.empty or r_stock.empty:
-        raise KeyError("第4題：基金或股票報酬率欄位沒有任何數值")
+    # 3) 從每一欄擷取數值，找出前兩個有真正數值的欄位
+    numeric_cols = []
+    numeric_data = {}
+    for col in df.columns:
+        nums = df[col].map(extract_num).dropna()
+        if len(nums)>0:
+            numeric_cols.append(col)
+            numeric_data[col] = nums.astype(float)
+        if len(numeric_cols) >= 2:
+            break
+
+    if len(numeric_cols) < 2:
+        raise KeyError("第4題：無法找到兩個可擷取數值的欄位")
+
+    # 前兩個欄位視為基金與股票回報
+    r_fund  = numeric_data[numeric_cols[0]]
+    r_stock = numeric_data[numeric_cols[1]]
 
     # 4) 模擬參數
     years     = 30
@@ -42,12 +64,14 @@ def solve(file_path):
     weights   = [0.5, 0.7, 0.9]
     results   = {}
 
-    # 5) Monte Carlo 模擬累積值
+    # 5) Monte Carlo 累積值模擬
     for w in weights:
         sims = np.zeros((Nsim, years))
         for t in range(years):
             dep = deposit * (inflation ** t)
-            r   = w * np.random.choice(r_stock, Nsim) + (1-w) * np.random.choice(r_fund, Nsim)
+            # 隨機抽樣已有數值 series
+            r = (w * np.random.choice(r_stock, Nsim) + 
+                 (1-w) * np.random.choice(r_fund, Nsim))
             if t == 0:
                 sims[:,0] = dep * (1 + r)
             else:
@@ -59,7 +83,8 @@ def solve(file_path):
     # 6) 繪 30 年平均累積值
     fn1 = "q4_trend.png"
     plt.figure(figsize=(10,6))
-    ax = plt.gca(); ax.grid(True, linestyle="--", alpha=0.5)
+    ax = plt.gca()
+    ax.grid(True, linestyle="--", alpha=0.5)
     means = [results[w].mean() for w in weights]
     ax.bar([f"{int(w*100)}% Stocks" for w in weights], means,
            color=["#4C72B0","#55A868","#C44E52"])
@@ -73,7 +98,8 @@ def solve(file_path):
     # 7) 繪 CDF
     fn2 = "q4_cdf.png"
     plt.figure(figsize=(10,6))
-    ax = plt.gca(); ax.grid(True, linestyle="--", alpha=0.5)
+    ax = plt.gca()
+    ax.grid(True, linestyle="--", alpha=0.5)
     max_val = max(v.max() for v in results.values())
     x = np.linspace(0, max_val, 500)
     for w in weights:
