@@ -5,7 +5,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 
-# 通用 sans-serif 字型
+# —— 强制使用通用 sans-serif 字体，避免中文缺字 ——  
 matplotlib.rcParams['font.family'] = 'sans-serif'
 matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans']
 matplotlib.rcParams['axes.unicode_minus'] = False
@@ -16,7 +16,7 @@ def solve(_):
     mean_values = [45, 55]
     N = 100_000
 
-    # 1) Profit & Std
+    # 1) 计算 Profit 与 Sensitivity
     profits    = {m: S * V * m for m in mean_values}
     sensitivity= {m: S * V * SD_const for m in mean_values}
 
@@ -30,8 +30,8 @@ def solve(_):
     xs = [str(m) for m in mean_values]
     ys = [profits[m] for m in mean_values]
     ax.bar(xs, ys, color=['#4C72B0','#55A868'])
-    ax.set_xlabel("P Mean")                   # English label
-    ax.set_ylabel("Profit")                    # English label
+    ax.set_xlabel("P Mean")             # 英文
+    ax.set_ylabel("Profit")              # 英文
     plt.tight_layout()
     plt.savefig(os.path.join("static","results",fn_profit))
     plt.close()
@@ -43,19 +43,19 @@ def solve(_):
     ax.grid(True, linestyle='--', alpha=0.5)
     ys2 = [sensitivity[m] for m in mean_values]
     ax.bar(xs, ys2, color=['#C44E52','#8172B2'])
-    ax.set_xlabel("P Mean")                   # English label
-    ax.set_ylabel("Profit Std Dev")            # English label
+    ax.set_xlabel("P Mean")             # 英文
+    ax.set_ylabel("Profit Std Dev")      # 英文
     plt.tight_layout()
     plt.savefig(os.path.join("static","results",fn_sens))
     plt.close()
 
     explain1 = (
-        f"When P Mean changes from {mean_values[0]} to {mean_values[1]}, "
+        f"When P Mean increases from {mean_values[0]} to {mean_values[1]}, "
         f"Profit goes from {profits[mean_values[0]]:.1f} to {profits[mean_values[1]]:.1f}, "
-        f"with standard deviation fixed at {sensitivity[mean_values[0]]:.1f}."
+        f"with constant Std Dev {sensitivity[mean_values[0]]:.1f}."
     )
 
-    # 2) Probability vs P SD
+    # 2) P_mean=50, SD in [8,10,12] → P(Profit>100)
     P_mean_fixed = 50.0
     prob_gt100 = {}
     for sd in [8, 10, 12]:
@@ -70,27 +70,28 @@ def solve(_):
     xs2 = sorted(prob_gt100.keys())
     ys3 = [prob_gt100[sd] for sd in xs2]
     ax.plot(xs2, ys3, marker='o')
-    ax.set_xlabel("P Standard Deviation")     # English label
-    ax.set_ylabel("P(Profit > 100)")           # English label
+    ax.set_xlabel("P Standard Deviation")  # 英文
+    ax.set_ylabel("P(Profit > 100)")        # 英文
     plt.tight_layout()
     plt.savefig(os.path.join("static","results",fn_prob))
     plt.close()
 
     explain2 = (
-        f"As P SD goes from {xs2[0]} to {xs2[-1]}, "
+        f"As P SD moves from {xs2[0]} to {xs2[-1]}, "
         f"P(Profit>100) changes from {prob_gt100[xs2[0]]:.4f} to {prob_gt100[xs2[-1]]:.4f}."
     )
 
+    # —— 返回必须含有这些中文 key ——  
     return {
-        "profit_chart": fn_profit,
-        "sensitivity_chart": fn_sens,
-        "explanation1": explain1,
-        "probabilities": prob_gt100,
-        "explanation2": explain2,
-        "prob_chart": fn_prob,
+        "盈利圖檔案":       fn_profit,
+        "靈敏度圖檔案":     fn_sens,
+        "機率變化圖檔案":   fn_prob,
+        "說明（盈利＆靈敏度）": explain1,
+        "P(Profit>100) 機率":   prob_gt100,
+        "說明（機率變化）":     explain2,
         "plots": {
-            "Profit Chart": fn_profit,
-            "Sensitivity Chart": fn_sens,
-            "Probability Chart": fn_prob
+            "盈利圖":     fn_profit,
+            "靈敏度圖":   fn_sens,
+            "機率變化圖": fn_prob
         }
     }
