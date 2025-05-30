@@ -57,34 +57,37 @@
     {% endfor %}
   </div>
 
-  {# 圖表區 #}
+  {# 第三題專用圖表 #}
   {% if question.id == 3 %}
-  <h3 class="sub-question">圖表</h3>
-  <div class="plot-box">
-    <div class="plot-item">
-      <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000">
-      <p>盈利圖（Profit vs. P 平均值）</p>
-    </div>
-    <div class="plot-item">
-      <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000">
-      <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
-    </div>
-    <div class="plot-item">
-      <img src="{{ url_for('static', filename='results/' + result['機率變化圖']) }}" width="1000">
-      <p>P(Profit&gt;100) 機率變化圖</p>
-    </div>
-  </div>
-{% elif result.plots %}
-  <h3 class="sub-question">圖表</h3>
-  <div class="plot-box">
-    {% for label, fn in result.plots.items() %}
+    <h3 class="sub-question">圖表</h3>
+    <div class="plot-box">
       <div class="plot-item">
-        <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
-        <p>{{ label }}</p>
+        <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000">
+        <p>盈利圖（Profit vs. P 平均值）</p>
       </div>
-    {% endfor %}
-  </div>
-{% endif %}
+      <div class="plot-item">
+        <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000">
+        <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
+      </div>
+      <div class="plot-item">
+        <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="1000">
+        <p>P(Profit&gt;100) 機率變化圖</p>
+      </div>
+    </div>
+  {% elif result.plots %}
+    {# 其它題目保持原本的迴圈 #}
+    <h3 class="sub-question">圖表</h3>
+    <div class="plot-box">
+      {% for label, fn in result.plots.items() %}
+        <div class="plot-item">
+          <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
+          <p>{{ label }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+
 
 
   <p>
