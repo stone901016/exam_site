@@ -5,20 +5,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def solve(file_path):
-    # 1) 自動尋找第一個非空 sheet
-    xls = pd.ExcelFile(file_path)
+    # 1) 嘗試用 xlrd engine 讀取 .xls
+    try:
+        xls = pd.ExcelFile(file_path, engine='xlrd')
+    except ImportError:
+        raise ImportError(
+            "第4題需要 xlrd 才能讀取 .xls 檔，"
+            "請在 requirements.txt 裡加上 \"xlrd>=2.0.1\" 並重新部署。"
+        )
+
+    # 2) 自動找到第一個 non-empty sheet
     df = None
     for sheet in xls.sheet_names:
-        tmp = pd.read_excel(file_path, sheet_name=sheet)
+        tmp = xls.parse(sheet)
         if not tmp.empty:
             df = tmp
             break
     if df is None or df.empty:
         raise KeyError("第4題：找不到任何有資料的工作表，請確認 Excel 內有資料")
 
-    # 2) 擷取基金與股票報酬率
+    # 3) 擷取「基金報酬率」與「股票報酬率」
     cols = list(df.columns)
-    # 優先欄位名，否則用前兩欄
     if "FundReturn" in cols:
         r_fund = df["FundReturn"].dropna().astype(float)
     else:
@@ -27,13 +34,13 @@ def solve(file_path):
         r_stock = df["StockReturn"].dropna().astype(float)
     else:
         if len(cols) < 2:
-            raise KeyError("第4題：找不到第二欄作為 StockReturn")
+            raise KeyError("第4題：找不到第二個欄位作為 StockReturn")
         r_stock = df[cols[1]].dropna().astype(float)
 
     if r_fund.empty or r_stock.empty:
         raise KeyError("第4題：基金或股票報酬率欄位沒有任何數值")
 
-    # 3) 模擬參數
+    # 4) 模擬參數
     years     = 30
     Nsim      = 10_000
     inflation = 1.022
@@ -41,13 +48,12 @@ def solve(file_path):
     weights   = [0.5, 0.7, 0.9]
     results   = {}
 
-    # 4) Monte Carlo 模擬累積值
+    # 5) Monte Carlo 模擬累積值
     for w in weights:
         sims = np.zeros((Nsim, years))
         for t in range(years):
             dep = deposit * (inflation ** t)
-            r   = w * np.random.choice(r_stock,  Nsim) + \
-                  (1-w) * np.random.choice(r_fund,  Nsim)
+            r   = w * np.random.choice(r_stock, Nsim) + (1-w) * np.random.choice(r_fund, Nsim)
             if t == 0:
                 sims[:,0] = dep * (1 + r)
             else:
@@ -56,7 +62,7 @@ def solve(file_path):
 
     os.makedirs("static/results", exist_ok=True)
 
-    # 5) 繪 30 年平均累積值
+    # 6) 繪 30 年平均累積值
     fn1 = "q4_trend.png"
     plt.figure(figsize=(10,6))
     ax = plt.gca(); ax.grid(True, linestyle="--", alpha=0.5)
@@ -67,10 +73,10 @@ def solve(file_path):
     ax.set_ylabel("Average Value After 30 Years")
     ax.set_title("30-Year Accumulated Average by Portfolio Mix")
     plt.tight_layout()
-    plt.savefig(os.path.join("static","results", fn1))
+    plt.savefig(os.path.join("static/results", fn1))
     plt.close()
 
-    # 6) 繪 CDF
+    # 7) 繪 CDF
     fn2 = "q4_cdf.png"
     plt.figure(figsize=(10,6))
     ax = plt.gca(); ax.grid(True, linestyle="--", alpha=0.5)
@@ -81,13 +87,14 @@ def solve(file_path):
         cdf = np.searchsorted(sorted_vals, x, side="right") / Nsim
         ax.plot(x, cdf, label=f"{int(w*100)}% Stocks")
     ax.set_xlabel("Final Value After 30 Years")
-    ax.set_ylabel("CDF")
+    ax.set_ylabel("Cumulative Probability")
     ax.set_title("CDF of 30-Year Final Value")
     ax.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join("static","results", fn2))
+    plt.savefig(os.path.join("static/results", fn2))
     plt.close()
 
+    # 8) 回傳 plots
     return {
         "plots": {
             "累積趨勢圖": fn1,
