@@ -42,10 +42,10 @@ def solve(file_path):
     #    - 投資人 30 歲 → 60 歲：共 31 年 (含 30、60)
     #    - 每年投入 10,000 元(考慮 2.2% 通膨)
     #    - 投資標的：股票與基金，均假設常態分布
-    #    - 模擬次數 N = 10,000
+    #    - 模擬次數 N = 100,000（已依需求從 10,000 改成 100,000）
     # -------------------------------------------------------------------
     years = 31
-    N = 100_000
+    N = 100_000       # <- 改為 100,000 次模擬
     inflation = 1.022  # 年通膨率 2.2%
     deposit = 10_000   # 每年投入金額
 
@@ -63,7 +63,7 @@ def solve(file_path):
         # sims[i,t] = 第 i 條模擬路徑，在第 t 年(30+t 歲) 的累積價值
         sims = np.zeros((N, years))
 
-        # 針對 100,000 次模擬，各年投入並產生隨機報酬
+        # 針對 N 次模擬，各年投入並產生隨機報酬
         for i in range(N):
             for t in range(years):
                 # 當年實際投入金額 (考慮通膨)
@@ -83,7 +83,7 @@ def solve(file_path):
         fn_trend = f"q4_trend_{int(w*100)}.png"
         plt.figure(figsize=(9, 6))
 
-        # 1) 先畫所有 100,000 條路徑 (淡藍色)
+        # 1) 先畫所有 N 條路徑 (淡藍色)
         for i in range(N):
             plt.plot(
                 ages,
@@ -103,7 +103,7 @@ def solve(file_path):
             label="Average Path"
         )
 
-        # X/Y 軸改回英文
+        # X/Y 軸改為英文
         plt.xlabel("Age", fontsize=12)
         plt.ylabel("Accumulated Value", fontsize=12)
         plt.title(f"Trend (w={int(w*100)}% Stocks)", fontsize=14)
@@ -128,7 +128,7 @@ def solve(file_path):
             linewidth=2
         )
 
-        # CDF 圖 X/Y 軸也用英文
+        # CDF 圖 X/Y 軸用英文
         plt.xlabel("Final Accumulated Value", fontsize=12)
         plt.ylabel("Cumulative Probability", fontsize=12)
         plt.title(f"CDF (w={int(w*100)}% Stocks)", fontsize=14)
