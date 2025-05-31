@@ -8,26 +8,23 @@
 <body>
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
-  <div class="answer-box">
-    {# -------------------------------------------- #}
-    {# Q1：如果是第1題，就顯示摘要文字 #}
-    {% if question.id == 1 %}
+  {# ================ 第一題 (Q1) 顯示區 ================ #}
+  {% if question.id == 1 %}
+    <div class="answer-box">
       <h3 class="sub-question">摘要</h3>
       <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
       <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
-    {% endif %}
-    {# -------------------------------------------- #}
+    </div>
 
-
-    {# -------------------------------------------- #}
-    {# 其它題目的「數值結果」用表格顯示（排除 Q1 已顯示的欄位） #}
-    {% for key, val in result.items() if key != 'plots' and key not in [
-          "最佳分布（賠償金額）",
-          "分布參數（賠償金額）",
-          "最佳分布（賠款率）",
-          "分布參數（賠款率）"
-       ] %}
-      {% if question.id != 1 %}
+    {# 第一題的其他數值統計表格 #}
+    <div class="answer-box">
+      {% for key, val in result.items() if key not in [
+            "最佳分布（賠償金額）",
+            "分布參數（賠償金額）",
+            "最佳分布（賠款率）",
+            "分布參數（賠款率）",
+            "plots"
+          ] %}
         <div style="margin-bottom:1em;">
           <strong class="sub-question">{{ key }}</strong>
           {% if val is mapping %}
@@ -61,15 +58,125 @@
             {{ val }}
           {% endif %}
         </div>
+      {% endfor %}
+    </div>
+
+    {# 第一題的圖表區 #}
+    {% if result.plots %}
+      <h3 class="sub-question">圖表</h3>
+      <div class="plot-box">
+        {% for label, fn in result.plots.items() %}
+          <div class="plot-item">
+            <img src="{{ url_for('static', filename='results/' + fn) }}" width="700">
+            <p>
+              {% if 'pdf_amount' in label %}
+                賠償金額機率密度圖
+              {% elif 'pdf_ratio' in label %}
+                賠款率機率密度圖
+              {% else %}
+                {{ label }}
+              {% endif %}
+            </p>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endif %}
+  {# ============= End of Q1 ============= #}
+
+
+  {# ================ 第二題 (Q2) 顯示區 ================ #}
+  {% if question.id == 2 %}
+    <div class="answer-box">
+      {% for key, val in result.items() if key != 'plots' %}
+        <div style="margin-bottom:1em;">
+          <strong class="sub-question">{{ key }}</strong>
+          {% if val is mapping %}
+            <table class="result-table">
+              <thead>
+                <tr>
+                  <th>參數</th>
+                  <th>數值{% if "賠款率" in key %}（%）{% endif %}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for k, v in val.items() %}
+                  <tr>
+                    <td>{{ k }}</td>
+                    <td>
+                      {% if v is number %}
+                        {{ '%.4f' % v }}
+                        {% if "賠款率" in key %} % {% endif %}
+                      {% else %}
+                        {{ v }}
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            {{ val }}
+          {% endif %}
+        </div>
+      {% endfor %}
+      {% if result.plots %}
+        <h3 class="sub-question">圖表</h3>
+        <div class="plot-box">
+          {% for label, fn in result.plots.items() %}
+            <div class="plot-item">
+              <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
+              <p>{{ label }}</p>
+            </div>
+          {% endfor %}
+        </div>
       {% endif %}
-    {% endfor %}
-    {# -------------------------------------------- #}
-  </div>
+    </div>
+  {% endif %}
+  {# ============= End of Q2 ============= #}
 
 
-  {# -------------------------------------------- #}
-  {# 第3題的圖表區塊 —— 只在 question.id=3 時顯示 #}
+  {# ================ 第三題 (Q3) 顯示區 ================ #}
   {% if question.id == 3 %}
+    <div class="answer-box">
+      {% for key, val in result.items() if key not in [
+            "盈利圖檔案",
+            "靈敏度圖檔案",
+            "機率變化圖檔案",
+            "plots"
+          ] %}
+        <div style="margin-bottom:1em;">
+          <strong class="sub-question">{{ key }}</strong>
+          {% if val is mapping %}
+            <table class="result-table">
+              <thead>
+                <tr>
+                  <th>參數</th>
+                  <th>數值</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for k, v in val.items() %}
+                  <tr>
+                    <td>{{ k }}</td>
+                    <td>
+                      {% if v is number %}
+                        {{ '%.4f' % v }}
+                      {% else %}
+                        {{ v }}
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            {{ val }}
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
     <h3 class="sub-question">圖表</h3>
     <div class="plot-box">
       <div class="plot-item">
@@ -86,53 +193,51 @@
       </div>
     </div>
   {% endif %}
-  {# -------------------------------------------- #}
+  {# ============= End of Q3 ============= #}
 
 
-  {# -------------------------------------------- #}
-  {# 第4題的圖表區塊 —— 只在 question.id=4 時顯示 #}
+  {# ================ 第四題 (Q4) 顯示區 ================ #}
   {% if question.id == 4 %}
-    <h3>Q1: Trend (股票權重 = 50%、70%、90%)</h3>
-    <div class="trend-images">
-      {% for w, fn in result.plots_trend.items() %}
-        <div class="trend-item">
-          <img src="{{ url_for('static', filename='results/' + fn) }}" 
-               alt="Trend w={{ (w*100)|int }}%" width="700">
+    <div class="answer-box">
+      <h3>Q1: Trend (股票權重 = 50%、70%、90%)</h3>
+      <div class="trend-images">
+        {% for w, fn in result.plots_trend.items() %}
+          <div class="trend-item">
+            <img src="{{ url_for('static', filename='results/' + fn) }}" width="700">
+            <p>w = {{ (w*100)|int }}% 股票</p>
+            <p>
+              X 軸：年齡 (30 → 60)，<br>
+              Y 軸：累積價值 (含每年投入 10,000 元、2.2% 通膨)。<br>
+              說明：此圖顯示投資人從 30 歲到 60 歲，<br>
+              每年投入 10,000 元，模擬 100,000 次後，<br>
+              在不同股票權重 ({{ (w*100)|int }}%) 下，<br>
+              各條模擬路徑（淡藍色）以及平均路徑（紅色粗線）的趨勢。
+            </p>
+          </div>
+        {% endfor %}
+      </div>
 
-          <p>w = {{ (w*100)|int }}% 股票</p>
-          <p>
-            X 軸：年齡 (30 → 60)，<br>
-            Y 軸：累積價值 (含每年投入 10,000 元、2.2% 通膨)。<br>
-            說明：此圖顯示投資人從 30 歲到 60 歲，<br>
-            每年投入 10,000 元，在不同股票權重 ({{ (w*100)|int }}%) 下，<br>
-            模擬 100,000 次後的各條路徑（淡藍色）以及平均路徑（紅色粗線）。
-          </p>
-        </div>
-      {% endfor %}
-    </div>
-
-    <h3>Q2: CDF (股票權重 = 50%、70%、90%)</h3>
-    <div class="cdf-images">
-      {% for w, fn in result.plots_cdf.items() %}
-        <div class="cdf-item">
-          <img src="{{ url_for('static', filename='results/' + fn) }}" 
-               alt="CDF w={{ (w*100)|int }}%" width="700">
-
-          <p>w = {{ (w*100)|int }}% 股票</p>
-          <p>
-            X 軸：60 歲時的最終累積價值，<br>
-            Y 軸：累積機率 (0 → 1)。<br>
-            說明：此圖顯示在不同股票權重 ({{ (w*100)|int }}%) 下，<br>
-            100,000 次模擬所得 60 歲最終累積價值的累積機率分布 (CDF)。
-          </p>
-        </div>
-      {% endfor %}
+      <h3>Q2: CDF (股票權重 = 50%、70%、90%)</h3>
+      <div class="cdf-images">
+        {% for w, fn in result.plots_cdf.items() %}
+          <div class="cdf-item">
+            <img src="{{ url_for('static', filename='results/' + fn) }}" width="700">
+            <p>w = {{ (w*100)|int }}% 股票</p>
+            <p>
+              X 軸：60 歲時的最終累積價值，<br>
+              Y 軸：累積機率 (0 → 1)。<br>
+              說明：此圖顯示在不同股票權重 ({{ (w*100)|int }}%) 下，<br>
+              100,000 次模擬所得 60 歲最終累積價值的累積機率分布 (CDF)。
+            </p>
+          </div>
+        {% endfor %}
+      </div>
     </div>
   {% endif %}
-  {# -------------------------------------------- #}
+  {# ============= End of Q4 ============= #}
 
 
-  <p>
+  <p style="margin-top:2em;">
     <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
     <a href="{{ url_for('index') }}">回首頁</a>
   </p>
