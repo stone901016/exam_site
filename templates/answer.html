@@ -5,7 +5,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <title>第 {{ question.id }} 題：{{ question.title }} — 答案</title>
   <style>
-    /* 簡單 CSS，請依實際需求自行調整 */
+    /* 簡單排版，必要時可自行調整 */
     body {
       font-family: Arial, "Microsoft JhengHei", sans-serif;
       margin: 20px;
@@ -66,11 +66,6 @@
       font-size: 0.95em;
       color: #555;
     }
-    .note-text {
-      font-size: 0.95em;
-      color: #555;
-      margin-top: 4px;
-    }
     form p {
       margin-bottom: 10px;
     }
@@ -93,7 +88,7 @@
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
   <div class="answer-box">
-    {# 如果 result == None，代表使用者尚未上傳：顯示「上傳檔案」的表單 #}
+    {# 如果 result 為空，顯示上傳檔案表單 #}
     {% if not result %}
       <form method="post" enctype="multipart/form-data">
         <p>請上傳第 {{ question.id }} 題所需檔案：</p>
@@ -101,94 +96,91 @@
         <button type="submit">產生答案</button>
       </form>
 
-    {# 如果已經有 result，開始逐項顯示 #}
     {% else %}
-
-      {# ========= 第 1 題：摘要顯示 ========= #}
+      {# ========= 第 1 題：專屬「摘要」顯示 ========= #}
       {% if question.id == 1 %}
         <h3 class="sub-question">摘要</h3>
-        {# 以下欄位名稱須與 question1.solve 回傳的 dict keys 相同 #}
-        <p>賠償金額最佳分布：<strong>{{ result["最佳分布（賠償金額）"] }}</strong>，
-           參數：<strong>{{ result["分布參數（賠償金額）"] }}</strong></p>
-        <p>賠款率最佳分布：<strong>{{ result["最佳分布（賠款率）"] }}</strong>，
-           參數：<strong>{{ result["分布參數（賠款率）"] }}</strong></p>
+        <p>
+          賠償金額最佳分布：<strong>{{ result["最佳分布（賠償金額）"] }}</strong>，  
+          參數：<strong>{{ result["分布參數（賠償金額）"] }}</strong>
+        </p>
+        <p>
+          賠款率最佳分布：<strong>{{ result["最佳分布（賠款率）"] }}</strong>，  
+          參數：<strong>{{ result["分布參數（賠款率）"] }}</strong>
+        </p>
       {% endif %}
 
-      {# ========= 通用部分：列出 result 中其餘非 plots／非第1題摘要的資料 ========= #}
+      {# ========= 針對 result 中的其他 key 進行逐項顯示 ========= #}
       {% for key, val in result.items() %}
-        {# 如果是第 1 題摘要已顯示過，就跳過 #}
+        {# 第 1 題用過的四個關鍵字略過（已在上方顯示） #}
         {% if question.id == 1 and (
              key == "最佳分布（賠償金額）" or
              key == "分布參數（賠償金額）" or
              key == "最佳分布（賠款率）" or
              key == "分布參數（賠款率）"
            ) %}
-          {% continue %}
-        {% endif %}
-
-        {# 如果 key 名稱中包含 "plots"（表示要貼圖），則以下邏輯處理圖 #}
-        {% if 'plots' in key %}
-          {# 第 4 題：Q1 Trend 與 Q2 CDF 會放在 plots_trend / plots_cdf #}
-          {% if key == 'plots_trend' %}
-            <h3 class="sub-question">Q1: Trend 圖表 (不同股票權重)</h3>
-          {% elif key == 'plots_cdf' %}
-            <h3 class="sub-question">Q2: CDF 圖表 (不同股票權重)</h3>
-          {% else %}
-            <h3 class="sub-question">{{ key }}</h3>
-          {% endif %}
-
-          <div class="plot-box">
-            {# val 必須是 mapping，例如 {0.5:"q4_trend_50.png", 0.7:"q4_trend_70.png", …} #}
-            {% for label, fn in val.items() %}
-              <div class="plot-item">
-                <img src="{{ url_for('static', filename='results/' + fn) }}" alt="{{ fn }}">
-                <p>
-                  {% if key == 'plots_trend' or key == 'plots_cdf' %}
-                    股票權重 = {{ (label * 100)|int }}%
-                  {% else %}
-                    {{ label }}
-                  {% endif %}
-                </p>
-              </div>
-            {% endfor %}
-          </div>
-
+          {# skip #}
         {% else %}
-          {# 如果不是要貼圖，就當作「參數表格」或「純文字」顯示 #}
-          <div style="margin-bottom: 16px;">
-            <strong class="sub-question">{{ key }}</strong>
-            {# 如果 val 是 mapping (dict)，就生成表格 #}
-            {% if val is mapping %}
-              <table class="result-table">
-                <thead>
-                  <tr>
-                    <th>參數</th>
-                    <th>數值{% if '率' in key %}（%）{% endif %}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for k2, v2 in val.items() %}
-                    <tr>
-                      <td>{{ k2 }}</td>
-                      <td>
-                        {% if v2 is number %}
-                          {{ '%.4f'|format(v2) }}{% if '率' in key %} %{% endif %}
-                        {% else %}
-                          {{ v2 }}
-                        {% endif %}
-                      </td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+          {# 如果 key 包含 'plots'，代表要貼圖 #}
+          {% if 'plots' in key %}
+            {# 第 4 題的圖表標題判斷 #}
+            {% if key == 'plots_trend' %}
+              <h3 class="sub-question">Q1: Trend 圖表 (不同股票權重)</h3>
+            {% elif key == 'plots_cdf' %}
+              <h3 class="sub-question">Q2: CDF 圖表 (不同股票權重)</h3>
             {% else %}
-              {# 普通文字或數值 #}
-              <p>{{ val }}</p>
+              <h3 class="sub-question">{{ key }}</h3>
             {% endif %}
-          </div>
+
+            <div class="plot-box">
+              {% for label, fn in val.items() %}
+                <div class="plot-item">
+                  <img src="{{ url_for('static', filename='results/' + fn) }}" alt="{{ fn }}">
+                  <p>
+                    {% if key == 'plots_trend' or key == 'plots_cdf' %}
+                      股票權重 = {{ (label * 100)|int }}%
+                    {% else %}
+                      {{ label }}
+                    {% endif %}
+                  </p>
+                </div>
+              {% endfor %}
+            </div>
+
+          {% else %}
+            {# 非圖表，就顯示為「參數表格」或「純文字」 #}
+            <div style="margin-bottom: 16px;">
+              <strong class="sub-question">{{ key }}</strong>
+              {% if val is mapping %}
+                <table class="result-table">
+                  <thead>
+                    <tr>
+                      <th>參數</th>
+                      <th>數值{% if '率' in key %}（%）{% endif %}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for k2, v2 in val.items() %}
+                      <tr>
+                        <td>{{ k2 }}</td>
+                        <td>
+                          {% if v2 is number %}
+                            {{ '%.4f'|format(v2) }}{% if '率' in key %} %{% endif %}
+                          {% else %}
+                            {{ v2 }}
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                <p>{{ val }}</p>
+              {% endif %}
+            </div>
+          {% endif %}
         {% endif %}
       {% endfor %}
-
     {% endif %}
   </div>
 
