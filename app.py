@@ -46,10 +46,12 @@ def background_question5(job_id, saved_file_path):
     try:
         # 先把狀態標記成 running
         jobs[job_id]["status"] = "running"
+        print(f"[BACKGROUND] ({job_id}) 開始執行 run_full_simulation…") 
 
         # 呼叫真正耗時的函式，並取得 result_dict
         # 您的 run_full_simulation 會做 100000 次模擬 + 格點搜尋 + 繪圖，最後回傳 dict
         result_dict = run_full_simulation(saved_file_path, n_sim=100_000)
+        print(f"[BACKGROUND] ({job_id}) run_full_simulation 執行完畢，準備存結果。")
 
         # 計算成功：把狀態改成 finished，並把 result 塞進去
         jobs[job_id]["status"] = "finished"
