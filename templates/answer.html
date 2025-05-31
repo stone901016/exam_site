@@ -87,6 +87,33 @@
     </div>
   {% endif %}
 
+  {# … 其他題目的 HTML … #}
+
+<h2>第 4 題：題目 4 標題 — 答案</h2>
+
+<div class="answer-box">
+  <h3>Q1: Trend (股票權重 = 50%、70%、90%)</h3>
+  <div class="trend-images">
+    {% for w, fn in result.plots_trend.items() %}
+      <div class="trend-item">
+        <img src="{{ url_for('static', filename='results/' + fn) }}" alt="Trend w={{ (w*100)|int }}%">
+        <p>w = {{ (w*100)|int }}% Stocks</p>
+      </div>
+    {% endfor %}
+  </div>
+
+  <h3>Q2: CDF (股票權重 = 50%、70%、90%)</h3>
+  <div class="cdf-images">
+    {% for w, fn in result.plots_cdf.items() %}
+      <div class="cdf-item">
+        <img src="{{ url_for('static', filename='results/' + fn) }}" alt="CDF w={{ (w*100)|int }}%">
+        <p>w = {{ (w*100)|int }}% Stocks</p>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+
 
 
 
