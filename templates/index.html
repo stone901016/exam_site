@@ -1,12 +1,47 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head><meta charset="utf-8"><link rel="stylesheet" href="{{ url_for('static',filename='css/style.css') }}"></head>
+<head>
+  <meta charset="utf-8">
+  <title>期末考模擬題目列表</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    body {
+      font-family: "Microsoft JhengHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      margin: 20px;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    ul.question-list {
+      list-style: none;
+      padding: 0;
+    }
+    ul.question-list li {
+      margin-bottom: 10px;
+    }
+    ul.question-list a {
+      text-decoration: none;
+      color: #0055a5;
+      font-size: 1.1em;
+    }
+    ul.question-list a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
 <body>
   <h1>期末考模擬題目列表</h1>
-  <ul>
-    {% for q in questions %}
-      <li><a href="{{ url_for('question', qid=q.id) }}">第 {{ q.id }} 題：{{ q.title }}</a></li>
-    {% endfor %}
+  <ul class="question-list">
+    <li><a href="{{ url_for('question', qid=1) }}">第 1 題：賠償金額與賠款率最佳機率密度函數</a></li>
+    <li><a href="{{ url_for('question', qid=2) }}">第 2 題：…（請填入第 2 題標題）</a></li>
+    <li><a href="{{ url_for('question', qid=3) }}">第 3 題：…（請填入第 3 題標題）</a></li>
+    <li><a href="{{ url_for('question', qid=4) }}">第 4 題：…（請填入第 4 題標題）</a></li>
+    <li><a href="{{ url_for('question', qid=5) }}">第 5 題：…（請填入第 5 題標題）</a></li>
+    <li><a href="{{ url_for('question', qid=6) }}">第 6 題：…（請填入第 6 題標題）</a></li>
+    <li><a href="{{ url_for('question', qid=7) }}">第 7 題：…（請填入第 7 題標題）</a></li>
+    <li><a href="{{ url_for('question', qid=8) }}">第 8 題：…（請填入第 8 題標題）</a></li>
+    <li><a href="{{ url_for('question', qid=9) }}">第 9 題：…（請填入第 9 題標題）</a></li>
+    <li><a href="{{ url_for('question', qid=10) }}">第 10 題：…（請填入第 10 題標題）</a></li>
   </ul>
 </body>
 </html>
