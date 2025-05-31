@@ -5,48 +5,86 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <title>第 {{ question.id }} 題：{{ question.title }} — 答案</title>
   <style>
-    /* 以下僅是範例用的簡易 CSS，你可以自行依需求調整 */
+    /* 簡單 CSS，請依實際需求自行調整 */
     body {
       font-family: Arial, "Microsoft JhengHei", sans-serif;
       margin: 20px;
+      line-height: 1.6;
+      color: #333;
     }
     .question-title {
       margin-bottom: 20px;
+      font-size: 1.4em;
     }
     .answer-box {
       border: 1px solid #ccc;
       padding: 20px;
       border-radius: 8px;
+      background-color: #f9f9f9;
     }
     .sub-question {
-      display: block;
       margin-top: 20px;
       margin-bottom: 10px;
       font-size: 1.1em;
-      color: #333;
+      font-weight: bold;
+      color: #555;
     }
     .result-table {
       width: 100%;
       border-collapse: collapse;
+      margin-bottom: 16px;
     }
     .result-table th,
     .result-table td {
       border: 1px solid #888;
       padding: 6px 8px;
       text-align: center;
+      background-color: #fff;
     }
     .plot-box {
       display: flex;
       flex-wrap: wrap;
+      gap: 16px;
       margin-top: 10px;
     }
     .plot-item {
-      margin: 10px;
+      flex: 1 1 300px;
       text-align: center;
+      background-color: #fff;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
     }
     .plot-item img {
+      max-width: 100%;
+      height: auto;
       border: 1px solid #aaa;
       border-radius: 4px;
+    }
+    .plot-item p {
+      margin-top: 6px;
+      font-size: 0.95em;
+      color: #555;
+    }
+    .note-text {
+      font-size: 0.95em;
+      color: #555;
+      margin-top: 4px;
+    }
+    form p {
+      margin-bottom: 10px;
+    }
+    form button {
+      padding: 6px 14px;
+      font-size: 1em;
+    }
+    .footer-links {
+      margin-top: 20px;
+    }
+    .footer-links a {
+      margin-right: 16px;
+      color: #0066cc;
+      text-decoration: none;
     }
   </style>
 </head>
@@ -55,49 +93,88 @@
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
   <div class="answer-box">
+    {# 如果 result == None，代表使用者尚未上傳：顯示「上傳檔案」的表單 #}
     {% if not result %}
-      {# result=null 時，顯示「上傳檔案」的表單 #}
       <form method="post" enctype="multipart/form-data">
-        <p>
-          <!-- 依照各題不同，你可以改成提示「上傳第 X 題所需檔案」 -->
-          請上傳第 {{ question.id }} 題所需檔案：<input type="file" name="file" required>
-        </p>
+        <p>請上傳第 {{ question.id }} 題所需檔案：</p>
+        <p><input type="file" name="file" required></p>
         <button type="submit">產生答案</button>
       </form>
+
+    {# 如果已經有 result，開始逐項顯示 #}
     {% else %}
-      {# result 有值時，逐一列出所有項目 #}
+
+      {# ========= 第 1 題：摘要顯示 ========= #}
+      {% if question.id == 1 %}
+        <h3 class="sub-question">摘要</h3>
+        {# 以下欄位名稱須與 question1.solve 回傳的 dict keys 相同 #}
+        <p>賠償金額最佳分布：<strong>{{ result["最佳分布（賠償金額）"] }}</strong>，
+           參數：<strong>{{ result["分布參數（賠償金額）"] }}</strong></p>
+        <p>賠款率最佳分布：<strong>{{ result["最佳分布（賠款率）"] }}</strong>，
+           參數：<strong>{{ result["分布參數（賠款率）"] }}</strong></p>
+      {% endif %}
+
+      {# ========= 通用部分：列出 result 中其餘非 plots／非第1題摘要的資料 ========= #}
       {% for key, val in result.items() %}
-        {% if key == 'plots' %}
-          {# 如果 key 是 'plots'，把裡面的每張圖都顯示出來 #}
-          <h3 class="sub-question">圖表</h3>
+        {# 如果是第 1 題摘要已顯示過，就跳過 #}
+        {% if question.id == 1 and (
+             key == "最佳分布（賠償金額）" or
+             key == "分布參數（賠償金額）" or
+             key == "最佳分布（賠款率）" or
+             key == "分布參數（賠款率）"
+           ) %}
+          {% continue %}
+        {% endif %}
+
+        {# 如果 key 名稱中包含 "plots"（表示要貼圖），則以下邏輯處理圖 #}
+        {% if 'plots' in key %}
+          {# 第 4 題：Q1 Trend 與 Q2 CDF 會放在 plots_trend / plots_cdf #}
+          {% if key == 'plots_trend' %}
+            <h3 class="sub-question">Q1: Trend 圖表 (不同股票權重)</h3>
+          {% elif key == 'plots_cdf' %}
+            <h3 class="sub-question">Q2: CDF 圖表 (不同股票權重)</h3>
+          {% else %}
+            <h3 class="sub-question">{{ key }}</h3>
+          {% endif %}
+
           <div class="plot-box">
+            {# val 必須是 mapping，例如 {0.5:"q4_trend_50.png", 0.7:"q4_trend_70.png", …} #}
             {% for label, fn in val.items() %}
               <div class="plot-item">
-                <img src="{{ url_for('static', filename='results/' + fn) }}" width="600">
-                <p>{{ label }}</p>
+                <img src="{{ url_for('static', filename='results/' + fn) }}" alt="{{ fn }}">
+                <p>
+                  {% if key == 'plots_trend' or key == 'plots_cdf' %}
+                    股票權重 = {{ (label * 100)|int }}%
+                  {% else %}
+                    {{ label }}
+                  {% endif %}
+                </p>
               </div>
             {% endfor %}
           </div>
+
         {% else %}
+          {# 如果不是要貼圖，就當作「參數表格」或「純文字」顯示 #}
           <div style="margin-bottom: 16px;">
             <strong class="sub-question">{{ key }}</strong>
+            {# 如果 val 是 mapping (dict)，就生成表格 #}
             {% if val is mapping %}
               <table class="result-table">
                 <thead>
                   <tr>
                     <th>參數</th>
-                    <th>數值{% if "率" in key %}（%）{% endif %}</th>
+                    <th>數值{% if '率' in key %}（%）{% endif %}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {% for k, v in val.items() %}
+                  {% for k2, v2 in val.items() %}
                     <tr>
-                      <td>{{ k }}</td>
+                      <td>{{ k2 }}</td>
                       <td>
-                        {% if v is number %}
-                          {{ '%.4f'|format(v) }}{% if "率" in key %} %{% endif %}
+                        {% if v2 is number %}
+                          {{ '%.4f'|format(v2) }}{% if '率' in key %} %{% endif %}
                         {% else %}
-                          {{ v }}
+                          {{ v2 }}
                         {% endif %}
                       </td>
                     </tr>
@@ -105,20 +182,22 @@
                 </tbody>
               </table>
             {% else %}
+              {# 普通文字或數值 #}
               <p>{{ val }}</p>
             {% endif %}
           </div>
         {% endif %}
       {% endfor %}
+
     {% endif %}
   </div>
 
-  <p style="margin-top:20px;">
+  <div class="footer-links">
     <a href="{{ url_for('index') }}">回首頁</a>
     {% if result %}
-      &nbsp;|&nbsp;
       <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a>
     {% endif %}
-  </p>
+  </div>
+
 </body>
 </html>
