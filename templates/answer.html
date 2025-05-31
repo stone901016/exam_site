@@ -2,126 +2,445 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <!-- 你原本的 CSS 連結 -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <title>第 {{ question.id }} 題：{{ question.title }} — 答案</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    /* 簡單排版樣式，可依需求自行調整 */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h2.question-title {
+      font-size: 1.6em;
+      margin-bottom: 0.5em;
+    }
+    .upload-form {
+      margin-bottom: 2em;
+    }
+    .upload-form input[type="file"] {
+      margin-right: 1em;
+    }
+    .result-box {
+      margin-top: 2em;
+    }
+    .sub-question {
+      font-weight: bold;
+      margin-top: 1.5em;
+      font-size: 1.2em;
+      color: #333;
+    }
+    .result-table {
+      border-collapse: collapse;
+      width: 80%;
+      margin-top: 0.5em;
+    }
+    .result-table th, .result-table td {
+      border: 1px solid #aaa;
+      padding: 6px 10px;
+      text-align: center;
+    }
+    .plot-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-top: 1em;
+    }
+    .plot-item {
+      flex: 1 1 500px;
+      text-align: center;
+    }
+    .plot-item img {
+      max-width: 100%;
+      border: 1px solid #ccc;
+    }
+    .polling-message {
+      margin-top: 1em;
+      font-style: italic;
+      color: #555;
+    }
+    .error-message {
+      color: red;
+      font-weight: bold;
+      margin-top: 1em;
+    }
+    /* 第 5 題專屬樣式 */
+    .q5-status-box {
+      margin-top: 1em;
+      padding: 10px;
+      border: 1px dashed #aaa;
+      background-color: #f9f9f9;
+    }
+    .q5-status-text {
+      font-size: 1em;
+      color: #333;
+    }
+    .q5-result-content {
+      margin-top: 1.5em;
+    }
+    .q5-plot {
+      margin-bottom: 1.5em;
+    }
+    .q5-plot img {
+      max-width: 90%;
+      border: 1px solid #ccc;
+    }
+  </style>
 </head>
 <body>
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
-  <div class="answer-box">
+  <!-- ================================================================
+       如果 result 為 None，就顯示「上傳檔案 + 產生答案」的表單
+       否則，直接進入顯示結果的區塊
+       ================================================================ -->
+  {% if result is none %}
+    <!-- ────────────────────────────────────────────────────────────────
+       特殊處理：第 5 題 (背景執行 + 輪詢) 以及 第 1~4 題 (同步)
+       ──────────────────────────────────────────────────────────────── -->
+    {% if question.id == 5 %}
+      <!-- Q5: 背景執行模式：先顯示一個上傳檔案 + 送出按鈕 -->
+      <div class="upload-form">
+        <form id="q5-upload-form" method="POST" enctype="multipart/form-data">
+          <input type="file" name="file" accept=".xls,.xlsx" required>
+          <button type="submit">產生答案</button>
+        </form>
+      </div>
 
-    {# ─────── 第 1 題：摘要區塊 ─────── #}
-    {% if question.id == 1 %}
-      <h3 class="sub-question">摘要</h3>
-      <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
-      <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
+      <!-- 背景工作啟動之後，利用 JavaScript 進行輪詢 (Polling) -->
+      <div id="q5-status-box" class="q5-status-box" style="display:none;">
+        <p class="q5-status-text" id="q5-status-text">工作尚未啟動…</p>
+      </div>
+
+      <!-- 第 5 題的結果會動態插入到這裡 -->
+      <div id="q5-result-box" class="q5-result-content" style="display:none;">
+        <!-- 結果填充範例：可包含數值、表格、圖檔等 -->
+        <!-- 這裡稍後會由 JavaScript 用 AJAX 填入 -->
+      </div>
+
+      <!-- JavaScript: 處理第 5 題的 Upload → 取得 job_id → 輪詢狀態 → 顯示結果 -->
+      <script>
+        document.getElementById("q5-upload-form").addEventListener("submit", function(e) {
+          e.preventDefault();
+
+          const form = e.currentTarget;
+          const formData = new FormData(form);
+          const statusBox = document.getElementById("q5-status-box");
+          const statusText = document.getElementById("q5-status-text");
+          const resultBox = document.getElementById("q5-result-box");
+
+          // 清空結果區
+          statusBox.style.display = "none";
+          resultBox.style.display = "none";
+          resultBox.innerHTML = "";
+
+          // 先送 POST /question/5，取得 job_id
+          fetch(window.location.pathname, {
+            method: "POST",
+            body: formData
+          })
+          .then(resp => {
+            if (!resp.ok) {
+              return resp.text().then(txt => { throw new Error(txt) });
+            }
+            return resp.json();
+          })
+          .then(data => {
+            // 後端回傳 { "job_id": "..." }
+            const jobId = data.job_id;
+            statusBox.style.display = "block";
+            statusText.textContent = "已啟動工作，請稍候… (Job ID：" + jobId + ")";
+
+            // 開始輪詢：每隔 3 秒呼叫 /question/5/status/<job_id>
+            const pollInterval = 3000; // 3 秒
+            const poller = setInterval(() => {
+              fetch(`/question/5/status/${jobId}`)
+                .then(r => {
+                  if (!r.ok) {
+                    return r.json().then(errObj => { throw new Error(errObj.error || "Unknown error"); });
+                  }
+                  return r.json();
+                })
+                .then(statusResp => {
+                  const st = statusResp.status;
+                  if (st === "pending" || st === "running") {
+                    statusText.textContent = "工作狀態： " + st + "，請繼續稍候…";
+                  }
+                  else if (st === "error") {
+                    // 顯示錯誤訊息
+                    clearInterval(poller);
+                    statusText.textContent = "工作執行失敗，錯誤訊息：" + statusResp.error;
+                    statusText.classList.add("error-message");
+                  }
+                  else if (st === "finished") {
+                    // 成功完成：停止輪詢，並把 result 填入畫面
+                    clearInterval(poller);
+                    statusText.textContent = "工作已完成！開始呈現結果…";
+                    const result = statusResp.result; // 這個是從 run_full_simulation 回傳的 dict
+
+                    // 在這裡自行根據 result 結構，動態產生 HTML
+                    // 範例：假設 result 裡有：
+                    //    result["some_value"]、result["another_dict"]、result["plots"] (檔名)
+                    // 下面示範如何把 result 裡的數值 + 圖檔放到畫面上。
+                    let html = "";
+
+                    // 範例：如果 run_full_simulation 回傳一個欄位 result["最佳組合"] 與 result["收益表格"]
+                    //    您可照需求調整。以下僅示意：
+                    if (result["最佳組合"]) {
+                      html += `<div class="sub-question">最佳組合 (2033 年)</div>`;
+                      html += `<p>${result["最佳組合"]}</p>`;
+                    }
+
+                    if (result["統計結果"]) {
+                      html += `<div class="sub-question">統計結果</div>`;
+                      html += `<table class="result-table">`;
+                      html += `<thead><tr><th>參數</th><th>數值</th></tr></thead><tbody>`;
+                      for (const [k, v] of Object.entries(result["統計結果"])) {
+                        html += `<tr><td>${k}</td><td>${v}</td></tr>`;
+                      }
+                      html += `</tbody></table>`;
+                    }
+
+                    // 如果有圖檔 (假設 result["plots"] 是 { "label": "filename.png", ...})
+                    if (result["plots"]) {
+                      html += `<div class="sub-question">圖表</div><div class="plot-box">`;
+                      for (const [label, fn] of Object.entries(result["plots"])) {
+                        html += `
+                          <div class="plot-item">
+                            <img src="{{ url_for('static', filename='results/') }}${fn}" alt="${label}">
+                            <p>${label}</p>
+                          </div>
+                        `;
+                      }
+                      html += `</div>`;
+                    }
+
+                    resultBox.innerHTML = html;
+                    resultBox.style.display = "block";
+                  }
+                })
+                .catch(err => {
+                  clearInterval(poller);
+                  statusText.textContent = "發生錯誤：" + err.message;
+                  statusText.classList.add("error-message");
+                });
+            }, pollInterval);
+          })
+          .catch(err => {
+            alert("無法啟動第 5 題背景工作：" + err.message);
+          });
+        });
+      </script>
+
+    {% else %}
+      <!-- Q1~Q4：同步表單，上傳檔案後才顯示 result -->
+      <div class="upload-form">
+        <form method="POST" enctype="multipart/form-data">
+          <input type="file" name="file" accept=".xls,.xlsx" required>
+          <button type="submit">產生答案</button>
+        </form>
+      </div>
     {% endif %}
 
-    {# ─────── 通用表格：將 result 字典裡的 key/value 顯示成表格 ─────── #}
-    {#    不管是第 1、2、3、4 題，只要不是圖表、也不是第 1 題上述已顯示的屬性，就用這段迴圈。     #}
-    {% for key, val in result.items() if key != 'plots' %}
-      {# 第 1 題要把剛剛顯示過的「最佳分布」等屬性排除掉： #}
-      {% if not (question.id == 1 and (key in [
+  {% else %}
+    <!-- ================================================================
+         result 已經有值，直接顯示此題的計算結果
+         Q1~Q4 以及 Q5（當輪詢完成後，才會將 result 塞進來）
+         ================================================================ -->
+    <div class="result-box">
+
+      {# 針對第 1 題顯示摘要，以及各種結果表格和圖表 #}
+      {% if question.id == 1 %}
+        <div class="sub-question">摘要</div>
+        <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
+        <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
+
+        {% for key, val in result.items() if key not in [
           "最佳分布（賠償金額）",
           "分布參數（賠償金額）",
           "最佳分布（賠款率）",
-          "分布參數（賠款率）"
-        ])) %}
-        <div style="margin-bottom: 1em;">
-          <strong class="sub-question">{{ key }}</strong>
-          {% if val is mapping %}
-            <table class="result-table">
-              <thead>
-                <tr>
-                  <th>參數</th>
-                  <th>數值{% if "賠款率" in key %}（%）{% endif %}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for k, v in val.items() %}
+          "分布參數（賠款率）",
+          "plots"
+        ] %}
+          <div style="margin-bottom:1em;">
+            <strong class="sub-question">{{ key }}</strong>
+            {% if val is mapping %}
+              <table class="result-table">
+                <thead>
                   <tr>
-                    <td>{{ k }}</td>
-                    <td>
-                      {% if "賠款率" in key %}
-                        {{ "{:.4f}".format(v) }} %
-                      {% else %}
-                        {{ "{:.4f}".format(v) }}
-                      {% endif %}
-                    </td>
+                    <th>參數</th>
+                    <th>數值{% if "賠款率" in key %}（%）{% endif %}</th>
                   </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          {% else %}
-            {{ val }}
-          {% endif %}
+                </thead>
+                <tbody>
+                  {% for k, v in val.items() %}
+                    <tr>
+                      <td>{{ k }}</td>
+                      <td>
+                        {% if "賠款率" in key %}
+                          {{ "{:.4f}".format(v) }} %
+                        {% else %}
+                          {{ "{:.4f}".format(v) }}
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              {{ val }}
+            {% endif %}
+          </div>
+        {% endfor %}
+
+        {% if result.plots %}
+          <div class="sub-question">圖表</div>
+          <div class="plot-box">
+            {% for label, fn in result.plots.items() %}
+              <div class="plot-item">
+                <img src="{{ url_for('static', filename='results/' + fn) }}" alt="{{ label }}">
+                <p>{{ label }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endif %}
+
+      {# 針對第 2 題顯示：分布參數 + VaR/CVaR 表格 + 圖表 #}
+      {% if question.id == 2 %}
+        <div class="sub-question">分布結果</div>
+        <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
+        <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
+
+        {% for key, val in result.items() if key not in [
+          "最佳分布（賠償金額）",
+          "分布參數（賠償金額）",
+          "最佳分布（賠款率）",
+          "分布參數（賠款率）",
+          "plots"
+        ] %}
+          <div style="margin-bottom:1em;">
+            <strong class="sub-question">{{ key }}</strong>
+            {% if val is mapping %}
+              <table class="result-table">
+                <thead>
+                  <tr>
+                    <th>置信水準</th>
+                    <th>Value at Risk</th>
+                    <th>Conditional VaR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for level, pair in val.items() %}
+                    <tr>
+                      <td>{{ level }}</td>
+                      <td>{{ "{:.4f}".format(pair[0]) }}</td>
+                      <td>{{ "{:.4f}".format(pair[1]) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              {{ val }}
+            {% endif %}
+          </div>
+        {% endfor %}
+
+        {% if result.plots %}
+          <div class="sub-question">圖表</div>
+          <div class="plot-box">
+            {% for label, fn in result.plots.items() %}
+              <div class="plot-item">
+                <img src="{{ url_for('static', filename='results/' + fn) }}" alt="{{ label }}">
+                <p>{{ label }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endif %}
+
+      {# 針對第 3 題顯示：表格 (Profit、靈敏度、機率變化) + 圖表 #}
+      {% if question.id == 3 %}
+        {% for key, val in result.items() if key not in [
+          "盈利圖檔案",
+          "靈敏度圖檔案",
+          "機率變化圖檔案",
+          "plots"
+        ] %}
+          <div style="margin-bottom:1em;">
+            <strong class="sub-question">{{ key }}</strong>
+            {% if val is mapping %}
+              <table class="result-table">
+                <thead>
+                  <tr>
+                    <th>參數</th>
+                    <th>數值</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for k, v in val.items() %}
+                    <tr>
+                      <td>{{ k }}</td>
+                      <td>{{ "{:.4f}".format(v) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              {{ val }}
+            {% endif %}
+          </div>
+        {% endfor %}
+
+        <div class="sub-question">圖表</div>
+        <div class="plot-box">
+          <div class="plot-item">
+            <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" alt="Profit Chart">
+            <p>Profit vs. P 平均值</p>
+          </div>
+          <div class="plot-item">
+            <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" alt="Sensitivity Chart">
+            <p>Profit 標準差 vs. P 平均值</p>
+          </div>
+          <div class="plot-item">
+            <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" alt="Probability Change">
+            <p>P(Profit &gt; 100) 機率變化</p>
+          </div>
         </div>
       {% endif %}
-    {% endfor %}
 
-  </div> {# .answer-box 結束 #}
-
-
-  {# ─────── 圖表顯示區 ─────── #}
-  {% if question.id == 3 %}
-    {# 第 3 題專用版面 #}
-    <h3 class="sub-question">圖表</h3>
-    <div class="plot-box">
-      <div class="plot-item">
-        <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000">
-        <p>盈利圖（Profit vs. P 平均值）</p>
-      </div>
-      <div class="plot-item">
-        <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000">
-        <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
-      </div>
-      <div class="plot-item">
-        <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="1000">
-        <p>P(Profit&gt;100) 機率變化圖</p>
-      </div>
-    </div>
-
-  {% elif question.id == 4 %}
-    {# 第 4 題版面：Trend 圖 & CDF 圖，各自有三張小圖 #}
-    <h3 class="sub-question">Q1: Trend (股票權重 = 50% 、 70% 、 90%)</h3>
-    <div class="trend-images">
-      {% for w, fn in result.plots_trend.items() %}
-        <div class="trend-item">
-          <img src="{{ url_for('static', filename='results/' + fn) }}" width="750">
-          <p>w = {{ (w * 100) | int }} % Stocks</p>
-          <p>── X 軸：年齡 (30→60)</p>
-          <p>── Y 軸：累積價值 (含每年投資 10,000 元・2.2 % 通膨)</p>
+      {# 針對第 4 題顯示：Trend + CDF (三張圖) #}
+      {% if question.id == 4 %}
+        <div class="sub-question">Q1: Trend (股票權重 = 50%、70%、90%)</div>
+        <div class="plot-box">
+          {% for w, fn in result.plots_trend.items() %}
+            <div class="plot-item">
+              <img src="{{ url_for('static', filename='results/' + fn) }}" alt="Trend w={{ (w*100)|int }}%">
+              <p>w = {{ (w*100)|int }}% Stocks</p>
+            </div>
+          {% endfor %}
         </div>
-      {% endfor %}
-    </div>
 
-    <h3 class="sub-question">Q2: CDF (股票權重 = 50% 、 70% 、 90%)</h3>
-    <div class="cdf-images">
-      {% for w, fn in result.plots_cdf.items() %}
-        <div class="cdf-item">
-          <img src="{{ url_for('static', filename='results/' + fn) }}" width="750">
-          <p>w = {{ (w * 100) | int }} % Stocks</p>
-          <p>── X 軸：最終累積值 (Age 60)</p>
-          <p>── Y 軸：累積機率</p>
+        <div class="sub-question">Q2: CDF (股票權重 = 50%、70%、90%)</div>
+        <div class="plot-box">
+          {% for w, fn in result.plots_cdf.items() %}
+            <div class="plot-item">
+              <img src="{{ url_for('static', filename='results/' + fn) }}" alt="CDF w={{ (w*100)|int }}%">
+              <p>w = {{ (w*100)|int }}% Stocks</p>
+            </div>
+          {% endfor %}
         </div>
-      {% endfor %}
-    </div>
+      {% endif %}
 
-  {% elif result.plots %}
-    {# 其它題目（第 1、2，或將來第 5 題）通用版面 #}
-    <h3 class="sub-question">圖表</h3>
-    <div class="plot-box">
-      {% for label, fn in result.plots.items() %}
-        <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
-          <p>{{ label }}</p>
-        </div>
-      {% endfor %}
+      {# 針對第 5 題：當輪詢完成、取得 result 時才顯示（由 JS 動態插入） #}
+      {% if question.id == 5 %}
+        <!-- 核心邏輯已在 JavaScript 裡，由 /question/5/status/<job_id> 取得 result，這裡先預留空間 -->
+        <div id="q5-result-box"></div>
+      {% endif %}
+
     </div>
   {% endif %}
 
-  <p>
+  <p style="margin-top:2em;">
     <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
     <a href="{{ url_for('index') }}">回首頁</a>
   </p>
