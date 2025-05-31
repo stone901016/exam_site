@@ -7,37 +7,32 @@ import matplotlib.pyplot as plt
 
 def solve(file_path):
     """
-    第 5 題：
+    第 5 題（網格搜尋版，高精度設定）：
     2002 年底，60 歲，退休金 1,000,000 元。希望每年提領 50,000 以上（2002 現值），
-    通貨膨脹率 3.12%。模擬 100,000 次，四種投資組合 (各含 4 類資產：LCS、SCS、CB、USGB)，
-    Part1：固定提款 50,000，模擬到 2033 年底各組合平均剩餘，找最佳投資組合。
-    Part2：對每個組合，用二分搜尋找可提款 W*（2002 現值），使 2033 年底平均剩餘 ≈ 0，並找最佳組合。
+    通貨膨脹率 3.12%。模擬 100,000 次，四種類別資產：LCS、SCS、CB、USGB，
+    用網格搜尋找到：
+      1. 固定提款 50,000 時，2033 年底「平均剩餘」最高的權重組合。
+      2. 求出對每組權重，使得 2033 年底「平均剩餘」≈ 0 時，最大可提領 W*，
+         並找出 W* 最大的那組權重。
 
-    資料主要使用 sustainableRetirementWithdrawls.xls，但若 Excel 拿不到 2003~2033 年度的
-    Total Return 欄位，就退回使用 1926–2002 年的 LCS、SCS、CB、USGB 歷史報酬率為
-    母本 (bootstrap)。
+    回傳字典格式：
+      {
+        "Part1_best_portfolio": "25%/12%/0%/63%",
+        "Part1_best_avg_remaining": 1234567.0,
+        "Part2_best_portfolio": "30%/10%/10%/50%",
+        "Part2_best_Wstar": 47890.0,
+        "plots": {
+            "Part 1（固定提款 50,000）：平均剩餘長條圖": "q5_part1.png",
+            "Part 2（最大 W*）：提領長條圖": "q5_part2.png"
+        }
+      }
     """
 
     # ---------------------------------------------------------------------
-    # 嘗試從 Excel 擷取 2003–2033 年的 Total Return Stocks / Bonds
+    # (A) 嘗試直接從 Excel 讀取 2003~2033 年度的「Total Return LCS、SCS、CB、USGB」
     use_manual = False
     try:
         df = pd.read_excel(file_path, sheet_name=0)
-
-        # 如果能夠讀到 2003~2033 的「Total Returns Stocks」和「Total Returns Bonds」，
-        # 但我們現在想要四類資產：LCS、SCS、CB、USGB，Presumably Excel 裡至少能給
-        # 這四個欄位（或是 Total Return Stocks/ Bonds 就對應到 LCS＋SCS / CB＋USGB）。
-        # 以下示範如果 Excel 有「Year、Total Returns Large Company Stocks、
-        # Total Returns Small Company Stocks、Total Returns Corporate Bonds、
-        # Total Returns U.S. Government Bonds」這四個欄位，就直接用：
-        #
-        #    "Total Return Large Company Stocks" => LCS
-        #    "Total Return Small Company Stocks" => SCS
-        #    "Total Return Corporate Bonds"      => CB
-        #    "Total Return U.S. Government Bonds" => USGB
-        #
-        # 如果缺少其中任何一個，就回退到 use_manual = True。
-        #
         required_cols = [
             "Year",
             "Total Return Large Company Stocks",
@@ -47,37 +42,31 @@ def solve(file_path):
         ]
         if all(col in df.columns for col in required_cols):
             df["Year"] = df["Year"].astype(int)
-            retires = df.loc[(df["Year"] >= 2003) & (df["Year"] <= 2033), required_cols].copy()
-
-            if len(retires) == 31:
-                # 直接拿到 2003~2033 的每年 multiplier，例如 1.2980、1.0696、1.0168 etc.
-                lcs_returns_excel  = retires["Total Return Large Company Stocks"].values.astype(float)
-                scs_returns_excel  = retires["Total Return Small Company Stocks"].values.astype(float)
-                cb_returns_excel   = retires["Total Return Corporate Bonds"].values.astype(float)
-                usgb_returns_excel = retires["Total Return U.S. Government Bonds"].values.astype(float)
+            df2 = df.loc[(df["Year"] >= 2003) & (df["Year"] <= 2033), required_cols].copy()
+            if len(df2) == 31:
+                # 直接將每年 multiplier（已經是 1.xxx 格式）
+                lcs_returns_excel  = df2["Total Return Large Company Stocks"].values.astype(float)
+                scs_returns_excel  = df2["Total Return Small Company Stocks"].values.astype(float)
+                cb_returns_excel   = df2["Total Return Corporate Bonds"].values.astype(float)
+                usgb_returns_excel = df2["Total Return U.S. Government Bonds"].values.astype(float)
             else:
                 use_manual = True
         else:
             use_manual = True
-
     except Exception:
-        # 任何讀取失敗都回退到手動方式
         use_manual = True
 
+    # ---------------------------------------------------------------------
+    # (B) 如果無法讀到 2003~2033，改用手動「1926~2002」歷史年化百分比 Bootstrap
     if not use_manual:
-        # 如果從 Excel 成功拿到 31 年的回報，直接使用
         lcs_returns = lcs_returns_excel.copy()
         scs_returns = scs_returns_excel.copy()
         cb_returns  = cb_returns_excel.copy()
         usgb_returns = usgb_returns_excel.copy()
-
     else:
-        # ================================================================
-        # 回退手動：使用者提供的 1926–2002 年 LCS、SCS、CB、USGB 年化百分比 (%)
-        #
-        # 以下一定要對照您提供的「1926~2002」那張表，把 LCS、SCS、CB、USGB
-        # 這四列 77 個數字逐年填齊。程式裡示範已經把您貼的表格完整打進來，請務必核對一致！
-        # ================================================================
+        # ---------------------------------------------------------------------
+        # （B1）請務必把下面 77 年的「% 數」跟您手上的 Excel 一字不差地填齊，
+        #      否則 Bootstrap 出來的分布不正確！
         MANUAL_LCS_PERC = np.array([
             11.91, 36.74, 41.45, -8.04, -25.40, -44.45, -8.66, 54.28, -1.88, 46.67,
             33.74, -35.53, 30.27, -0.74, -9.72, -11.40, 20.57, 26.22, 20.36, 36.27,
@@ -122,221 +111,212 @@ def solve(file_path):
              1.72, 10.64, 10.63, -3.44, 14.78,  6.49, 13.35
         ], dtype=float)
 
-        # 確認都是 77 年
-        if not (len(MANUAL_LCS_PERC) == len(MANUAL_SCS_PERC) == len(MANUAL_CB_PERC) == len(MANUAL_USGB_PERC) == 77):
-            raise KeyError("第5題：手動填入的 LCS/SCS/CB/USGB 資料筆數必須各為 77 年 (1926~2002)。")
+        if not (len(MANUAL_LCS_PERC)==77 and len(MANUAL_SCS_PERC)==77 
+                and len(MANUAL_CB_PERC)==77 and len(MANUAL_USGB_PERC)==77):
+            raise KeyError("第5題：手動填入的 LCS/SCS/CB/USGB 必須各有 77 筆 (1926~2002)。")
 
-        # 轉成 multiplier (1 + 百分比/100)
-        lcs_returns = 1.0 + (MANUAL_LCS_PERC / 100.0)
-        scs_returns = 1.0 + (MANUAL_SCS_PERC / 100.0)
-        cb_returns  = 1.0 + (MANUAL_CB_PERC  / 100.0)
-        usgb_returns = 1.0 + (MANUAL_USGB_PERC/ 100.0)
+        # 轉成 multiplier (1 + %/100)
+        lcs_returns  = 1.0 + (MANUAL_LCS_PERC  / 100.0)
+        scs_returns  = 1.0 + (MANUAL_SCS_PERC  / 100.0)
+        cb_returns   = 1.0 + (MANUAL_CB_PERC   / 100.0)
+        usgb_returns = 1.0 + (MANUAL_USGB_PERC / 100.0)
 
-    # ------------------------------------------------------------------------------
-    # 到這裡：lcs_returns、scs_returns、cb_returns、usgb_returns
-    #   或長度為 31（直接從 Excel 讀取 2003~2033），
-    #   或長度為 77（從 1926~2002 Bootstrap）。
-    # ------------------------------------------------------------------------------
-    # 共用參數
-    Nsim = 100_000            # 蒙地卡羅路徑數
-    total_years = 31          # 2003–2033 共 31 年
-    init_capital = 1_000_000  # 初始退休金
+    # ---------------------------------------------------------------------
+    # (C) 共用參數設定
+    Nsim = 100_000         # 現在改回 100,000 次模擬
+    total_years = 31       # 2003–2033 共 31 年
+    init_capital = 1_000_000  # 初始退休金 (2002 年底)
     inflation = 0.0312        # 年通膨率 3.12%
+    fixed_withdraw = 50_000   # Part1 固定提款 50,000
 
-    # ------------------------------------------------
-    # 【請務必在此自行定義「四種投資組合」的四元權重】
-    #
-    # weight_list 中包含 4 個元素，每個元素都是一個 list/tuple，內含 4 個數字：
-    #   [w_LCS, w_SCS, w_CB, w_USGB]，且其總和約等於 1.0。
-    #
-    # 範例（請依照題目需求將下列四組示範值改成您真正想要的四種組合）：
-    #
-    #   1. [0.25, 0.12, 0.00, 0.63] → LCS 25%、SCS 12%、CB 0%、USGB 63%
-    #   2. [0.30, 0.10, 0.10, 0.50] → LCS 30%、SCS 10%、CB 10%、USGB 50%
-    #   3. [0.40, 0.20, 0.10, 0.30] → LCS 40%、SCS 20%、CB 10%、USGB 30%
-    #   4. [0.60, 0.20, 0.10, 0.10] → LCS 60%、SCS 20%、CB 10%、USGB 10%
-    #
-    # 如果您有不同的四種 mix，請直接改 weight_list：
-    weight_list = [
-        [0.25, 0.12, 0.00, 0.63],
-        [0.30, 0.10, 0.10, 0.50],
-        [0.40, 0.20, 0.10, 0.30],
-        [0.60, 0.20, 0.10, 0.10]
-    ]
-    # ------------------------------------------------
-
-    # 驗證 weight_list 中每組的總和是否約 1.0（允許極小浮點誤差）
-    for w in weight_list:
-        if abs(sum(w) - 1.0) > 1e-6:
-            raise KeyError(f"第5題：權重總和必須=1.0，但您提供 {w} 的總和 = {sum(w)}。")
-
-    # 建立 NumPy array 代表四類資產的母本
-    lcs_pool  = np.array(lcs_returns)
-    scs_pool  = np.array(scs_returns)
-    cb_pool   = np.array(cb_returns)
-    usgb_pool = np.array(usgb_returns)
+    # 將四類資產的 multiplier 轉成 np.array，方便 index 隨機抽樣
+    pool_lcs  = np.array(lcs_returns)
+    pool_scs  = np.array(scs_returns)
+    pool_cb   = np.array(cb_returns)
+    pool_usgb = np.array(usgb_returns)
 
     rng = np.random.default_rng()
 
-    def simulate_path(four_weights, W_withdraw):
+
+    def simulate_path(weights, W_withdraw):
         """
-        模擬單一路徑，給定四元權重 four_weights = [w_LCS, w_SCS, w_CB, w_USGB]，
-        以及 W_withdraw（2002 現值）之後，回傳形狀 (Nsim, ) 的 2033 年底剩餘資產。
+        模擬 Nsim 條路徑，四元權重 weights = [w_LCS, w_SCS, w_CB, w_USGB]，
+        每年先本金配權，走到 31 年後輸出「2033 年底的剩餘資產 (np.array of shape (Nsim,))」。
         """
-        # 建立 (Nsim, total_years+1) 矩陣，第一年 (t=0) 皆為 init_capital
+        w_lcs, w_scs, w_cb, w_usgb = weights
+
+        # 建立 (Nsim, total_years+1) 矩陣，第一年的資產 = init_capital
         sim_mat = np.zeros((Nsim, total_years + 1), dtype=float)
         sim_mat[:, 0] = init_capital
 
-        # 如果母本長度 = 31，就直接重複給所有模擬路徑
-        # 如果母本長度 = 77，就 bootstrap 隨機抽樣 (有放回) 共 31 年
-        if lcs_pool.shape[0] == total_years:
-            # 直接把 31 年資料 tile 成 (Nsim,31)
-            stock_lcs_draws  = np.tile(lcs_pool,  (Nsim, 1))
-            stock_scs_draws  = np.tile(scs_pool,  (Nsim, 1))
-            bond_cb_draws    = np.tile(cb_pool,   (Nsim, 1))
-            bond_usgb_draws  = np.tile(usgb_pool, (Nsim, 1))
+        # 抽樣：若 pool 長度剛好=31，直接 tile；否則 Bootstrap
+        if pool_lcs.shape[0] == total_years:
+            draw_lcs  = np.tile(pool_lcs,  (Nsim, 1))
+            draw_scs  = np.tile(pool_scs,  (Nsim, 1))
+            draw_cb   = np.tile(pool_cb,   (Nsim, 1))
+            draw_usgb = np.tile(pool_usgb, (Nsim, 1))
         else:
-            # Bootstrap：從 77 年母本隨機抽 31 年
-            stock_lcs_draws  = rng.choice(lcs_pool, size=(Nsim, total_years), replace=True)
-            stock_scs_draws  = rng.choice(scs_pool, size=(Nsim, total_years), replace=True)
-            bond_cb_draws    = rng.choice(cb_pool,   size=(Nsim, total_years), replace=True)
-            bond_usgb_draws  = rng.choice(usgb_pool, size=(Nsim, total_years), replace=True)
+            draw_lcs  = rng.choice(pool_lcs,  size=(Nsim, total_years), replace=True)
+            draw_scs  = rng.choice(pool_scs,  size=(Nsim, total_years), replace=True)
+            draw_cb   = rng.choice(pool_cb,   size=(Nsim, total_years), replace=True)
+            draw_usgb = rng.choice(pool_usgb, size=(Nsim, total_years), replace=True)
 
-        w_lcs, w_scs, w_cb, w_usgb = four_weights
-
-        # 逐年模擬 2003~2033
+        # 逐年 (t=1~31) 計算
         for t in range(1, total_years + 1):
-            # 計算「當年」依通膨調整後要提領的實際金額
             real_withdraw = W_withdraw * ((1.0 + inflation) ** (t - 1))
 
-            prev_val = sim_mat[:, t - 1]  # 去年 (t-1) 年底資產
-            r1 = stock_lcs_draws[:, t - 1]   # LCS 的 multiplier
-            r2 = stock_scs_draws[:, t - 1]   # SCS 的 multiplier
-            r3 = bond_cb_draws[:, t - 1]     # CB  的 multiplier
-            r4 = bond_usgb_draws[:, t - 1]   # USGB 的 multiplier
+            prev = sim_mat[:, t-1]
+            r1   = draw_lcs[:, t-1]
+            r2   = draw_scs[:, t-1]
+            r3   = draw_cb[:, t-1]
+            r4   = draw_usgb[:, t-1]
 
-            # 計算「當年」(t 年底) 的資產 = 去年資產 × (w_LCS*r1 + w_SCS*r2 + w_CB*r3 + w_USGB*r4) - real_withdraw
-            new_val = prev_val * (w_lcs * r1 + w_scs * r2 + w_cb * r3 + w_usgb * r4) - real_withdraw
+            new_val = prev * ( w_lcs * r1
+                              + w_scs * r2
+                              + w_cb  * r3
+                              + w_usgb* r4 ) - real_withdraw
 
-            # 如果 new_val < 0，就強制設為 0
             new_val[new_val < 0] = 0.0
             sim_mat[:, t] = new_val
 
-        # 回傳「2033 年底」(t=31) 的那一欄，形狀 (Nsim,)
         return sim_mat[:, -1]
 
 
-    # =====================================================================
-    # Part 1：固定提款 50,000 (2002 現值)，模擬各組合到 2033 年底的「平均剩餘」
-    fixed_withdraw = 50_000
-    part1_avg_remaining = {}  # key = tuple(weight)，value = float(平均剩餘)
-    for w in weight_list:
-        rems = simulate_path(w, fixed_withdraw)
-        part1_avg_remaining[tuple(w)] = np.mean(rems)
+    # ---------------------------------------------------------------------
+    # (D) 產生「所有可能的四元權重」網格（步進 0.01，即 1% 一格）
+    step = 0.01
+    grid_values = np.arange(0.0, 1.0 + 1e-9, step)  # [0.00, 0.01, 0.02, …, 1.00]
 
-    # 找出 Part1 最佳組合 (平均剩餘最大)
-    best_portfolio_part1 = max(part1_avg_remaining, key=lambda x: part1_avg_remaining[x])
+    weight_grid = []
+    for w1 in grid_values:
+        for w2 in grid_values:
+            if w1 + w2 > 1.0 + 1e-9:
+                continue
+            for w3 in grid_values:
+                if w1 + w2 + w3 > 1.0 + 1e-9:
+                    continue
+                w4 = 1.0 - (w1 + w2 + w3)
+                if w4 < -1e-9:
+                    continue
+                # 四元 tuple，取到小數第四位
+                weight_grid.append((round(w1, 4), round(w2, 4), round(w3, 4), round(w4, 4)))
 
+    # 語意上可能猜測總共組合數為 C(101+3,3) ≈ 176,851 組（實際看範圍）
+    # print("Total weight combinations:", len(weight_grid))
 
-    # =====================================================================
-    # Part 2：對每個組合 w，用二分搜尋找最大可提款 W*（2002 現值），使 2033 年底「平均剩餘」≈ 0
-    def find_max_withdrawal_for_weights(weights):
-        """
-        對於給定 weights (四元向量)，用二分搜尋找「最大可提領 W*」，
-        使 31 年後 (2033 年底) 的平均剩餘 ∼ 0（允許誤差 tol）。
-        返回：(最佳 W*, 在此 W* 下的平均剩餘)
-        """
-        lo, hi = 0.0, 200000.0  # 可以提款的範圍 (2002 現值)，上限先設 200k
-        tol = 1_000.0           # 平均剩餘允許誤差 ±1,000
-        best_mid, best_avg = 0.0, None
+    # ---------------------------------------------------------------------
+    # (E) Part1：固定提款 50,000 時，遍歷權重網格，計算 2033 年底的平均剩餘
+    best_avg_rem = -1.0
+    best_w_part1 = None
+    part1_records = {}
 
-        for _ in range(25):
+    for idx, w in enumerate(weight_grid):
+        avg_rem = np.mean(simulate_path(w, fixed_withdraw))
+        part1_records[w] = avg_rem
+        if avg_rem > best_avg_rem:
+            best_avg_rem = avg_rem
+            best_w_part1 = w
+        # （可選）進度印出
+        if (idx + 1) % 20_000 == 0:
+            print(f"[Part1] 已處理 {idx+1} / {len(weight_grid)} 組權重")
+
+    # ---------------------------------------------------------------------
+    # (F) Part2：對每組 w，二分搜尋最大可提領 W*，使 2033 年底平均剩餘 ≈ 0
+    def find_Wstar(weights):
+        lo, hi = 0.0, 200_000.0
+        tol = 1_000.0    # 平均剩餘誤差 ±1,000
+        best_mid = 0.0
+        best_avg = None
+
+        for _ in range(30):  # 迭代 30 次可達非常高精度
             mid = (lo + hi) / 2.0
-            remainders = simulate_path(weights, mid)
-            avg_mid = np.mean(remainders)
-            if avg_mid > tol:
-                # 如果平均剩餘大於 tol，表示還可以再提高提款
+            rems = simulate_path(weights, mid)
+            avg_rem = np.mean(rems)
+
+            if avg_rem > tol:
                 lo = mid
                 best_mid = mid
-                best_avg = avg_mid
+                best_avg = avg_rem
             else:
-                # 如果平均剩餘過低 (<= tol)，提款太多，要往下調
                 hi = mid
 
         return best_mid, best_avg
 
-    part2_max_withdrawal = {}
-    part2_avg_remaining_at_star = {}
-    for w in weight_list:
-        W_star, avg_at_star = find_max_withdrawal_for_weights(w)
-        part2_max_withdrawal[tuple(w)] = W_star
-        part2_avg_remaining_at_star[tuple(w)] = avg_at_star
+    best_Wstar = -1.0
+    best_w_part2 = None
+    part2_records = {}
 
-    # Part 2 最佳組合：看哪個 W* 最大
-    best_portfolio_part2 = max(part2_max_withdrawal, key=lambda x: part2_max_withdrawal[x])
+    for idx, w in enumerate(weight_grid):
+        Wstar, avg_rem_at_star = find_Wstar(w)
+        part2_records[w] = (Wstar, avg_rem_at_star)
+        if Wstar > best_Wstar:
+            best_Wstar = Wstar
+            best_w_part2 = w
+        if (idx + 1) % 20_000 == 0:
+            print(f"[Part2] 已處理 {idx+1} / {len(weight_grid)} 組權重")
 
-
-    # =====================================================================
-    # 繪圖：Part1 & Part2 各畫一張長條圖，存到 static/results/
+    # ---------------------------------------------------------------------
+    # (G) 繪圖：Part1 & Part2 長條圖
     os.makedirs("static/results", exist_ok=True)
 
-    # (1) Part1 長條：X-軸為四種權重、Y-軸為「2033 年底平均剩餘」
-    fn_part1 = "q5_part1_avg_remaining.png"
-    plt.figure(figsize=(8, 5))
-    x_labels = [f"{int(w[0]*100)}%/{int(w[1]*100)}%/{int(w[2]*100)}%/{int(w[3]*100)}%"
-                for w in weight_list]
-    y_vals1 = [part1_avg_remaining[tuple(w)] for w in weight_list]
-    bars1 = plt.bar(x_labels, y_vals1, color='tab:blue')
-    plt.xlabel("投資組合權重 (LCS/SCS/CB/USGB)")
-    plt.ylabel("2033 年底平均剩餘資產 (元)")
-    plt.title("Part 1：固定提領 50,000 時，各組合 2033 年底平均剩餘")
-    plt.xticks(rotation=15, ha='right')
-    for idx, v in enumerate(y_vals1):
-        plt.text(idx, v * 1.02, f"{v:,.0f}", ha='center', va='bottom')
+    # 1) Part1：2033 年底平均剩餘長條
+    fn1 = "q5_part1.png"
+    plt.figure(figsize=(12, 6))
+    combos = [f"{int(w[0]*100)}%/{int(w[1]*100)}%/{int(w[2]*100)}%/{int(w[3]*100)}%" 
+              for w in weight_grid]
+    values1 = [part1_records[w] for w in weight_grid]
+    bars = plt.bar(combos, values1, color='tab:blue')
+    plt.xticks(rotation=90, fontsize=6)
+    plt.xlabel("資產權重 (LCS/SCS/CB/USGB)")
+    plt.ylabel("2033 年底平均剩餘 (元)")
+    plt.title("Part 1：固定提款 50,000 時，各權重組合 2033 年底平均剩餘")
+    idx_best1 = weight_grid.index(best_w_part1)
+    bars[idx_best1].set_color('tab:red')
+    plt.text(idx_best1, values1[idx_best1] * 1.02,
+             f"{int(values1[idx_best1]):,}", 
+             ha='center', va='bottom', color='red', fontsize=8)
     plt.tight_layout()
-    plt.savefig(os.path.join("static", "results", fn_part1))
+    plt.savefig(os.path.join("static", "results", fn1))
     plt.close()
 
-    # (2) Part2 長條：X-軸為四種權重、Y-軸為最大可提領 W*
-    fn_part2 = "q5_part2_max_withdraw.png"
-    plt.figure(figsize=(8, 5))
-    y_vals2 = [part2_max_withdrawal[tuple(w)] for w in weight_list]
-    bars2 = plt.bar(x_labels, y_vals2, color='tab:orange')
-    plt.xlabel("投資組合權重 (LCS/SCS/CB/USGB)")
-    plt.ylabel("最大可提領 W* (2002 現值，元)")
-    plt.title("Part 2：各投資組合的最大可提領 W* (2033 年底平均剩餘 ≈ 0)")
-    plt.xticks(rotation=15, ha='right')
-    for idx, v in enumerate(y_vals2):
-        plt.text(idx, v * 1.02, f"{v:,.0f}", ha='center', va='bottom')
+    # 2) Part2：最大可提領 W* 長條
+    fn2 = "q5_part2.png"
+    plt.figure(figsize=(12, 6))
+    values2 = [part2_records[w][0] for w in weight_grid]
+    bars2 = plt.bar(combos, values2, color='tab:orange')
+    plt.xticks(rotation=90, fontsize=6)
+    plt.xlabel("資產權重 (LCS/SCS/CB/USGB)")
+    plt.ylabel("最大可提領 W* (2002 現值, 元)")
+    plt.title("Part 2：各權重組合的最大 W* (2033 年底平均剩餘 ≈ 0)")
+    idx_best2 = weight_grid.index(best_w_part2)
+    bars2[idx_best2].set_color('tab:red')
+    plt.text(idx_best2, values2[idx_best2] * 1.02,
+             f"{int(values2[idx_best2]):,}",
+             ha='center', va='bottom', color='red', fontsize=8)
     plt.tight_layout()
-    plt.savefig(os.path.join("static", "results", fn_part2))
+    plt.savefig(os.path.join("static", "results", fn2))
     plt.close()
 
-
-    # =====================================================================
-    # 最終回傳字典，前端 template (answer.html) 會用到
+    # ---------------------------------------------------------------------
+    # (H) 組合並回傳
     return {
-        # Part1 結果
-        "Part1_avg_remaining": {f"{int(w[0]*100)}%/{int(w[1]*100)}%/{int(w[2]*100)}%/{int(w[3]*100)}%": 
-                                part1_avg_remaining[tuple(w)] for w in weight_list},
-        "Part1_best_portfolio": f"{int(best_portfolio_part1[0]*100)}%/" +
-                                f"{int(best_portfolio_part1[1]*100)}%/" +
-                                f"{int(best_portfolio_part1[2]*100)}%/" +
-                                f"{int(best_portfolio_part1[3]*100)}%",
+        # Part1
+        "Part1_best_portfolio": f"{int(best_w_part1[0]*100)}%/"
+                                f"{int(best_w_part1[1]*100)}%/"
+                                f"{int(best_w_part1[2]*100)}%/"
+                                f"{int(best_w_part1[3]*100)}%",
+        "Part1_best_avg_remaining": best_avg_rem,
 
-        # Part2 結果
-        "Part2_max_withdrawal": {f"{int(w[0]*100)}%/{int(w[1]*100)}%/{int(w[2]*100)}%/{int(w[3]*100)}%":
-                                 part2_max_withdrawal[tuple(w)] for w in weight_list},
-        "Part2_avg_remaining_at_star": {f"{int(w[0]*100)}%/{int(w[1]*100)}%/{int(w[2]*100)}%/{int(w[3]*100)}%":
-                                        part2_avg_remaining_at_star[tuple(w)] for w in weight_list},
-        "Part2_best_portfolio": f"{int(best_portfolio_part2[0]*100)}%/" +
-                                f"{int(best_portfolio_part2[1]*100)}%/" +
-                                f"{int(best_portfolio_part2[2]*100)}%/" +
-                                f"{int(best_portfolio_part2[3]*100)}%",
+        # Part2
+        "Part2_best_portfolio": f"{int(best_w_part2[0]*100)}%/"
+                                f"{int(best_w_part2[1]*100)}%/"
+                                f"{int(best_w_part2[2]*100)}%/"
+                                f"{int(best_w_part2[3]*100)}%",
+        "Part2_best_Wstar": best_Wstar,
 
         # 圖檔
         "plots": {
-            "Part 1：固定提領 50k 平均剩餘": fn_part1,
-            "Part 2：最大可提領 W*":       fn_part2
+            "Part 1（固定提款 50,000）：平均剩餘長條圖": fn1,
+            "Part 2（最大 W*）：提領長條圖": fn2
         }
     }
