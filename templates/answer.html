@@ -9,16 +9,15 @@
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
   <div class="answer-box">
-    {# ========== Q1 的摘要顯示 (第 1 題) ========== #}
+    {# ------------------- 第1題摘要 ------------------- #}
     {% if question.id == 1 %}
       <h3 class="sub-question">摘要</h3>
       <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
       <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
     {% endif %}
 
-    {# ========== 一般題目的結果表格顯示 ========== #}
-    {% for key, val in result.items() if key not in ['plots', 'plots_trend', 'plots_cdf'] %}
-      {# 若是第 1 題，要略過「摘要」已經顯示過的項目 #}
+    {# ------------------- 其餘結果以表格顯示 ------------------- #}
+    {% for key, val in result.items() if key != 'plots' and key != 'plots_trend' and key != 'plots_cdf' %}
       {% if not (question.id == 1 and key in [
             "最佳分布（賠償金額）",
             "分布參數（賠償金額）",
@@ -28,11 +27,14 @@
         <div style="margin-bottom:1em;">
           <strong class="sub-question">{{ key }}</strong>
           {% if val is mapping %}
-            <table class="result-table" border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse; width:60%;">
-              <thead style="background:#f0f0f0;">
+            <table class="result-table">
+              <thead>
                 <tr>
                   <th>參數</th>
-                  <th>數值{% if "賠款率" in key %}（%）{% endif %}</th>
+                  <th>
+                    數值
+                    {% if "賠款率" in key %}（%）{% endif %}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -40,10 +42,10 @@
                   <tr>
                     <td>{{ k }}</td>
                     <td>
-                      {% if v is number %}
-                        {{ "{:.4f}".format(v) }}{% if "賠款率" in key %} %{% endif %}
+                      {% if "賠款率" in key %}
+                        {{ "{:.4f}".format(v) }} %
                       {% else %}
-                        {{ v }}
+                        {{ "{:.4f}".format(v) }}
                       {% endif %}
                     </td>
                   </tr>
@@ -58,75 +60,68 @@
     {% endfor %}
   </div>
 
-  {# ========== 第 3 題 專屬圖表 (保持原本邏輯) ========== #}
+  {# ------------------- 第3題專用圖表 ------------------- #}
   {% if question.id == 3 %}
-    <h3 class="sub-question" style="margin-top:2em;">圖表</h3>
-    <div class="plot-box" style="display:flex; flex-direction:column; gap:2em; margin-top:1em;">
+    <h3 class="sub-question">圖表</h3>
+    <div class="plot-box">
       <div class="plot-item">
-        <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000" alt="盈利圖 (Profit vs. P 平均值)">
-        <p>盈利圖（橫軸：P 平均值，縱軸：Profit 平均值）</p>
-        <p>本圖顯示在 P 平均值分別為 45 與 55 兩種情況下，模擬 10,000 次後的平均累積收益趨勢。</p>
+        <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="500">
+        <p>盈利圖（Profit vs. P 平均值）</p>
       </div>
       <div class="plot-item">
-        <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000" alt="靈敏度分析圖 (Profit 標準差 vs. P 平均值)">
-        <p>靈敏度分析圖（橫軸：P 平均值，縱軸：Profit 標準差）</p>
-        <p>本圖顯示 P 平均值為 45 與 55 時，模擬 10,000 次後 Profit 的標準差變化。</p>
+        <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="500">
+        <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
       </div>
       <div class="plot-item">
-        <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="1000" alt="P(Profit&gt;100) 機率變化圖">
-        <p>P(Profit&gt;100) 機率變化圖（橫軸：P SD，縱軸：P(Profit&gt;100)）</p>
-        <p>本圖顯示在 P 標準差為 8、10、12 時，模擬 10,000 次後 Profit&gt;100 的機率。</p>
+        <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="500">
+        <p>P(Profit&gt;100) 機率變化圖</p>
       </div>
     </div>
-    <p style="margin-top:2em;"><a href="{{ url_for('index') }}">回首頁</a></p>
-    {% return %}
-  {% endif %}
 
-  {# ========== 其它題目通用圖表 ========== #}
-  {% if result.plots %}
+  {# ------------------- 其它題目通用圖表 ------------------- #}
+  {% elif 'plots' in result and question.id != 3 and question.id != 4 %}
     <h3 class="sub-question">圖表</h3>
-    <div class="plot-box" style="display:flex; gap:2em; margin-top:1em;">
+    <div class="plot-box">
       {% for label, fn in result.plots.items() %}
-        <div class="plot-item" style="text-align:center;">
-          <img src="{{ url_for('static', filename='results/' + fn) }}" width="500" alt="{{ label }}">
+        <div class="plot-item">
+          <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
           <p>{{ label }}</p>
         </div>
       {% endfor %}
     </div>
-    <p style="margin-top:2em;"><a href="{{ url_for('index') }}">回首頁</a></p>
-    {% return %}
-  {% endif %}
 
-  {# ========== 第 4 題 專屬：三張 Trend + 三張 CDF 圖 + 中文解說 ========== #}
-  {% if question.id == 4 %}
-    <h3 class="sub-question" style="margin-top:2em;">Q1: Trend (股票權重 = 50%、70%、90%)</h3>
-    <div class="trend-images" style="display:flex; gap:1em; margin-bottom:2em;">
+  {# ------------------- 第4題專用圖表 ------------------- #}
+  {% elif question.id == 4 %}
+    <h3>Q1: Trend（股票權重 = 50%、70%、90%）</h3>
+    <div class="trend-images">
       {% for w, fn in result.plots_trend.items() %}
-        <div class="trend-item" style="text-align:center;">
-          <img src="{{ url_for('static', filename='results/' + fn) }}" alt="Trend w={{ (w*100)|int }}%" style="max-width:400px; border:1px solid #ccc;">
-          <p>w = {{ (w*100)|int }}% 股票</p>
-          <p>橫軸：年齡 (30→59)，縱軸：平均累積價值<br>
-          本圖顯示投資人自 30 歲起每年投入 10,000 元（考慮 2.2% 通膨），在股票權重為 {{ (w*100)|int }}% 下，模擬 10,000 次後的平均累積趨勢。</p>
+        <div class="trend-item">
+          <img src="{{ url_for('static', filename='results/' + fn) }}" alt="Trend w={{ (w*100)|int }}%" width="750">
+          <p>w = {{ (w*100)|int }}% 股票<br>
+             X-axis: 年齡<br>
+             Y-axis: 平均累積價值<br>
+             說明：此圖顯示投資人從 30 歲到 60 歲，每年投入 10,000 元 (含 2.2% 通膨)，
+             在不同股票權重下 ({{ (w*100)|int }}%)，模擬 10,000 次後的平均累積趨勢。</p>
         </div>
       {% endfor %}
     </div>
 
-    <h3 class="sub-question">Q2: CDF (股票權重 = 50%、70%、90%)</h3>
-    <div class="cdf-images" style="display:flex; gap:1em; margin-bottom:2em;">
+    <h3>Q2: CDF（股票權重 = 50%、70%、90%）</h3>
+    <div class="cdf-images">
       {% for w, fn in result.plots_cdf.items() %}
-        <div class="cdf-item" style="text-align:center;">
-          <img src="{{ url_for('static', filename='results/' + fn) }}" alt="CDF w={{ (w*100)|int }}%" style="max-width:400px; border:1px solid #ccc;">
-          <p>w = {{ (w*100)|int }}% 股票</p>
-          <p>橫軸：最終累積價值 (至 60 歲)，縱軸：累積機率<br>
-          本圖顯示在股票權重為 {{ (w*100)|int }}% 時，模擬 10,000 次後，60 歲結束時各累積價值的分佈機率。</p>
+        <div class="cdf-item">
+          <img src="{{ url_for('static', filename='results/' + fn) }}" alt="CDF w={{ (w*100)|int }}%" width="750">
+          <p>w = {{ (w*100)|int }}% 股票<br>
+             X-axis: 最終累積價值<br>
+             Y-axis: 累積機率<br>
+             說明：此圖顯示在同樣條件下 (同樣投入與通膨假設)，
+             以模擬 10,000 次後的最終累積價值分布 (CDF)。</p>
         </div>
       {% endfor %}
     </div>
-
-    <p style="margin-top:2em;"><a href="{{ url_for('index') }}">回首頁</a></p>
   {% endif %}
 
-  <p style="margin-top:2em;">
+  <p>
     <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
     <a href="{{ url_for('index') }}">回首頁</a>
   </p>
