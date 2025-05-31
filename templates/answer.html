@@ -4,156 +4,93 @@
   <meta charset="utf-8">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <title>第 {{ question.id }} 題：{{ question.title }} — 答案</title>
-  <style>
-    body {
-      font-family: "Microsoft JhengHei", Arial, sans-serif;
-      margin: 40px;
-      line-height: 1.6;
-    }
-    h2.question-title {
-      font-size: 22px;
-      margin-bottom: 20px;
-    }
-    .answer-box {
-      border: 1px solid #ddd;
-      padding: 20px;
-      border-radius: 4px;
-      background-color: #fafafa;
-    }
-    .sub-question {
-      font-size: 18px;
-      margin: 16px 0 8px;
-      display: block;
-    }
-    .result-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 8px;
-    }
-    .result-table th,
-    .result-table td {
-      border: 1px solid #ccc;
-      padding: 6px 8px;
-      text-align: center;
-    }
-    .result-table th {
-      background-color: #f0f0f0;
-    }
-    .plot-box {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-      margin-top: 16px;
-    }
-    .plot-item {
-      flex: 1 1 500px;
-      text-align: center;
-    }
-    .plot-item img {
-      max-width: 100%;
-      height: auto;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-    .plot-item p {
-      margin-top: 6px;
-      font-size: 14px;
-      color: #333;
-    }
-    .upload-form {
-      margin-bottom: 16px;
-    }
-    .upload-form input[type="file"] {
-      margin-right: 8px;
-    }
-    .upload-form button {
-      padding: 6px 12px;
-      font-size: 14px;
-    }
-    .status-box {
-      margin: 16px 0;
-      padding: 12px;
-      border: 1px dashed #aaa;
-      background-color: #fff;
-    }
-    .links {
-      margin-top: 20px;
-    }
-    .links a {
-      color: #0066cc;
-      text-decoration: none;
-      margin-right: 12px;
-      font-size: 14px;
-    }
-    .links a:hover {
-      text-decoration: underline;
-    }
-  </style>
 </head>
 <body>
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
-  {# 上傳區塊（如果 result 為空，就顯示「上傳檔案 + 產生答案」按鈕） #}
-  {# 第1 ~ 第4 題及第5題 GET 都會走到這裡（result=None） #}
-  {% if result is none %}
-    <form class="upload-form" method="post" enctype="multipart/form-data">
-      <input type="file" name="file" required>
-      <button type="submit">產生答案</button>
-    </form>
-  {% endif %}
-
   <div class="answer-box">
-    {# ====== 第1題：顯示「摘要」 ====== #}
-    {% if question.id == 1 and result %}
-      <h3 class="sub-question">摘要</h3>
-      <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
-      <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
+    <!-- ================================================ -->
+    <!-- (1) 第 1 題：顯示摘要 -->
+    <!-- ================================================ -->
+    {% if question.id == 1 %}
+      {% if result %}
+        <h3 class="sub-question">摘要</h3>
+        <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
+        <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
+      {% else %}
+        <!-- result=None 時，顯示上傳檔表單 -->
+        <form method="post" enctype="multipart/form-data">
+          <p>請上傳保險理賠資料 Excel：<input type="file" name="file" required></p>
+          <button type="submit">產生答案</button>
+        </form>
+      {% endif %}
     {% endif %}
 
-    {# ====== 顯示同第1題以外（第1題除外已在上面顯示摘要），其餘結果以表格顯示 ====== #}
-    {% if result %}
-      {% for key, val in result.items() if key != 'plots' %}
-        {%- if not (question.id == 1 and key in [
-                  "最佳分布（賠償金額）",
-                  "分布參數（賠償金額）",
-                  "最佳分布（賠款率）",
-                  "分布參數（賠款率）"
-               ]) %}
-          <div style="margin-bottom:1em;">
-            <strong class="sub-question">{{ key }}</strong>
-            {% if val is mapping %}
-              <table class="result-table">
-                <thead>
-                  <tr>
-                    <th>參數</th>
-                    <th>數值{% if "賠款率" in key %}（%）{% endif %}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for k, v in val.items() %}
+    <!-- ================================================ -->
+    <!-- (2) 第 2、3、4 題：以表格或文字顯示 result -->
+    <!-- ================================================ -->
+    {% if question.id in [2,3,4] %}
+      {% if not result %}
+        <!-- 尚無 result 時，只顯示上傳表單 -->
+        <form method="post" enctype="multipart/form-data">
+          <p>請上傳對應檔案：<input type="file" name="file" required></p>
+          <button type="submit">產生答案</button>
+        </form>
+      {% else %}
+        <!-- 已有 result，開始顯示各項內容 -->
+        {% for key, val in result.items() %}
+          {% if question.id == 3 and key in ["盈利圖檔案", "靈敏度圖檔案", "機率變化圖檔案"] %}
+            {# 第 3 題的專屬圖形部分，留到下方 #}
+          {% else %}
+            <div style="margin-bottom:1em;">
+              <strong class="sub-question">{{ key }}</strong>
+              {% if val is mapping %}
+                <table class="result-table">
+                  <thead>
                     <tr>
-                      <td>{{ k }}</td>
-                      <td>
-                        {% if "賠款率" in key %}
-                          {{ '{:.4f}'.format(v) }} %
-                        {% else %}
-                          {{ '{:.4f}'.format(v) }}
-                        {% endif %}
-                      </td>
+                      <th>參數</th>
+                      <th>數值{% if "賠款率" in key %}（%）{% endif %}</th>
                     </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            {% else %}
-              <p>{{ val }}</p>
-            {% endif %}
-          </div>
-        {%- endif %}
-      {% endfor %}
+                  </thead>
+                  <tbody>
+                    {% for k, v in val.items() %}
+                      <tr>
+                        <td>{{ k }}</td>
+                        <td>
+                          {% set float_val = None %}
+                          {# 嘗試把 v 轉成數字 #}
+                          {% if v is string %}
+                            {% try %}
+                              {% set float_val = v|float %}
+                            {% except %}
+                              {% set float_val = None %}
+                            {% endtry %}
+                          {% elif v is number %}
+                            {% set float_val = v %}
+                          {% endif %}
+
+                          {% if float_val is not none %}
+                            {{ '%.4f'|format(float_val) }}{% if "賠款率" in key %} %{% endif %}
+                          {% else %}
+                            {{ v }}  {# 直接輸出字串（檔名或文字） #}
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                {{ val }}
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
     {% endif %}
 
-
-    {# ====== 第3題：專用圖表區塊 ====== #}
+    <!-- ================================================ -->
+    <!-- (3) 第 3 題專屬圖表（如果有） -->
+    <!-- ================================================ -->
     {% if question.id == 3 and result %}
       <h3 class="sub-question">圖表</h3>
       <div class="plot-box">
@@ -170,9 +107,12 @@
           <p>P(Profit&gt;100) 機率變化圖</p>
         </div>
       </div>
+    {% endif %}
 
-    {# ====== 其它題目（第1、2、4、5）若有 plots 屬性，就使用通用迴圈 ====== #}
-    {% elif result and result.plots %}
+    <!-- ================================================ -->
+    <!-- (4) 第 2、4 題及其他題目的通用圖表區（如果有 result.plots） -->
+    <!-- ================================================ -->
+    {% if question.id not in [1,3,5] and result and result.get('plots') %}
       <h3 class="sub-question">圖表</h3>
       <div class="plot-box">
         {% for label, fn in result.plots.items() %}
@@ -184,56 +124,135 @@
       </div>
     {% endif %}
 
-    {# ====== 第5題：非同步輪詢狀態顯示區塊 ====== #}
-    {% if question.id == 5 and result is none %}
-      <div class="status-box">
-        工作狀態：pending，請繼續稍候...
-      </div>
-    {% elif question.id == 5 and result %}
-      {# 如果第5題已經完成 result，就正常顯示其內文、表格或圖表（由 run_full_simulation 傳回） #}
-      {% for key, val in result.items() if key != 'plots' %}
-        <div style="margin-bottom:1em;">
-          <strong class="sub-question">{{ key }}</strong>
-          {% if val is mapping %}
-            <table class="result-table">
-              <thead>
-                <tr>
-                  <th>參數</th>
-                  <th>數值</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for k, v in val.items() %}
-                  <tr>
-                    <td>{{ k }}</td>
-                    <td>{{ '{:.4f}'.format(v) }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          {% else %}
-            <p>{{ val }}</p>
-          {% endif %}
-        </div>
-      {% endfor %}
+    <!-- ================================================ -->
+    <!-- (5) 第 5 題：背景任務輪詢 (Polling) 顯示區塊 -->
+    <!-- ================================================ -->
+    {% if question.id == 5 %}
+      {% if not result %}
+        {# 沒有 result（表示剛剛 GET or POST 剛開始 yet），顯示上傳表單且提醒輪詢狀態 #}
+        <form id="q5-form" method="post" enctype="multipart/form-data">
+          <p>請上傳 <strong>SustainableRetirementWithdrawals.xls</strong>：<input type="file" name="file" required></p>
+          <button type="submit">產生答案</button>
+        </form>
 
-      {% if result.plots %}
-        <h3 class="sub-question">圖表</h3>
-        <div class="plot-box">
-          {% for label, fn in result.plots.items() %}
-            <div class="plot-item">
-              <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
-              <p>{{ label }}</p>
-            </div>
-          {% endfor %}
+        <div id="job-status" class="status-box" style="margin-top:20px;">
+          工作狀態：<span id="status-text">尚未送出檔案</span>
         </div>
+
+        <script>
+          /**
+           * 第 5 題上傳後，要先取得 job_id，然後每隔幾秒向 /question/5/status/<job_id> 輪詢，
+           * 若 status="finished" 則用 location.href 重新載入，讓後端帶回 result。
+           */
+          document.getElementById("q5-form").addEventListener("submit", function(event) {
+            event.preventDefault();
+            const formData = new FormData(this);
+            document.getElementById("status-text").innerText = "pending，正在將檔案上傳並啟動背景計算…";
+
+            fetch("", {
+              method: "POST",
+              body: formData
+            })
+            .then(response => {
+              if (!response.ok) throw new Error("上傳失敗");
+              return response.json();
+            })
+            .then(data => {
+              const jobId = data.job_id;
+              // 開始輪詢
+              pollStatus(jobId);
+            })
+            .catch(err => {
+              document.getElementById("status-text").innerText = "上傳或啟動任務失敗：" + err;
+            });
+          });
+
+          function pollStatus(jobId) {
+            document.getElementById("status-text").innerText = "pending，請稍候…";
+            fetch(`/question/5/status/${jobId}`)
+              .then(resp => resp.json())
+              .then(json => {
+                if (json.status === "pending" || json.status === "running") {
+                  // 繼續輪詢
+                  setTimeout(() => pollStatus(jobId), 3000);
+                } else if (json.status === "finished") {
+                  // 完成時，重新載入頁面 (後端此時會把 result 一併帶回)
+                  location.reload();
+                } else if (json.status === "error") {
+                  document.getElementById("status-text").innerText = "背景執行錯誤：" + json.error;
+                } else {
+                  document.getElementById("status-text").innerText = "未知狀態：" + json.status;
+                }
+              })
+              .catch(err => {
+                document.getElementById("status-text").innerText = "輪詢失敗：" + err;
+              });
+          }
+        </script>
+      {% else %}
+        {# 如果後端已有 result，就由後端直接 render 問題 5 的 answer 區塊 #}
+        {% for key, val in result.items() %}
+          <div style="margin-bottom:1em;">
+            <strong class="sub-question">{{ key }}</strong>
+            {% if val is mapping %}
+              <table class="result-table">
+                <thead>
+                  <tr>
+                    <th>參數</th>
+                    <th>數值</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for k, v in val.items() %}
+                    <tr>
+                      <td>{{ k }}</td>
+                      <td>
+                        {% set float_val = None %}
+                        {% if v is string %}
+                          {% try %}
+                            {% set float_val = v|float %}
+                          {% except %}
+                            {% set float_val = None %}
+                          {% endtry %}
+                        {% elif v is number %}
+                          {% set float_val = v %}
+                        {% endif %}
+
+                        {% if float_val is not none %}
+                          {{ '%.4f'|format(float_val) }}
+                        {% else %}
+                          {{ v }}
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              {{ val }}
+            {% endif %}
+          </div>
+        {% endfor %}
+
+        {# 如果第 5 題有圖表 (例如 result.plots)，也可依需求放圖 #}
+        {% if result.get("plots") %}
+          <h3 class="sub-question">圖表</h3>
+          <div class="plot-box">
+            {% for label, fn in result.plots.items() %}
+              <div class="plot-item">
+                <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
+                <p>{{ label }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
       {% endif %}
     {% endif %}
 
-    <div class="links">
-      <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
-      <a href="{{ url_for('index') }}">回首頁</a>
-    </div>
   </div>
+
+  <p>
+    <a href="{{ url_for('index') }}">回首頁</a>
+  </p>
 </body>
 </html>
