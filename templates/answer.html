@@ -9,16 +9,17 @@
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
   <div class="answer-box">
-    {# Q1 摘要顯示 #}
+    {# ========== Q1 的摘要顯示 (如果是第 1 題) ========== #}
     {% if question.id == 1 %}
       <h3 class="sub-question">摘要</h3>
       <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
       <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
     {% endif %}
 
-    {# 其餘結果以表格顯示 #}
-    {% for key, val in result.items() if key != 'plots' %}
-      {% if question.id != 1 or (question.id == 1 and key not in [
+    {# ========== 其餘結果以表格顯示 ========== #}
+    {% for key, val in result.items() if key not in ['plots', 'plots_trend', 'plots_cdf', '盈利圖檔案', '靈敏度圖檔案', '機率變化圖檔案'] %}
+      {# 如果第 1 題，要略過已在「摘要」顯示過的那些項目 #}
+      {% if not (question.id == 1 and key in [
             "最佳分布（賠償金額）",
             "分布參數（賠償金額）",
             "最佳分布（賠款率）",
@@ -27,8 +28,8 @@
         <div style="margin-bottom:1em;">
           <strong class="sub-question">{{ key }}</strong>
           {% if val is mapping %}
-            <table class="result-table">
-              <thead>
+            <table class="result-table" border="1" cellpadding="4" cellspacing="0" style="border-collapse:collapse; width:50%;">
+              <thead style="background:#f0f0f0;">
                 <tr>
                   <th>參數</th>
                   <th>數值{% if "賠款率" in key %}（%）{% endif %}</th>
@@ -39,10 +40,11 @@
                   <tr>
                     <td>{{ k }}</td>
                     <td>
-                      {% if "賠款率" in key %}
-                        {{ '{:.4f}'.format(v) }} %
+                      {# 如果是賠款率類要顯示 %，且 v 為數字才格式化 #}
+                      {% if v is number %}
+                        {{ "{:.4f}".format(v) }}{% if "賠款率" in key %} %{% endif %}
                       {% else %}
-                        {{ '{:.4f}'.format(v) }}
+                        {{ v }}
                       {% endif %}
                     </td>
                   </tr>
@@ -50,76 +52,70 @@
               </tbody>
             </table>
           {% else %}
+            {# val 不是 mapping 就直接輸出 (可能是字串) #}
             {{ val }}
           {% endif %}
         </div>
       {% endif %}
     {% endfor %}
-  </div>
 
-  {# 第三題專用圖表 #}
-  {% if question.id == 3 %}
-    <h3 class="sub-question">圖表</h3>
-    <div class="plot-box">
-      <div class="plot-item">
-        <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000">
-        <p>盈利圖（Profit vs. P 平均值）</p>
-      </div>
-      <div class="plot-item">
-        <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000">
-        <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
-      </div>
-      <div class="plot-item">
-        <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="1000">
-        <p>P(Profit&gt;100) 機率變化圖</p>
-      </div>
-    </div>
-  {% elif result.plots %}
-    {# 其它題目保持原本的迴圈 #}
-    <h3 class="sub-question">圖表</h3>
-    <div class="plot-box">
-      {% for label, fn in result.plots.items() %}
+    {# ========== 第三題專用圖表 (如果是第 3 題) ========== #}
+    {% if question.id == 3 %}
+      <h3 class="sub-question">圖表</h3>
+      <div class="plot-box" style="display:flex; flex-direction:column; gap:2em; margin-top:1em;">
         <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
-          <p>{{ label }}</p>
+          <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000" alt="盈利圖 (Profit vs. P 平均值)">
+          <p>盈利圖（Profit vs. P 平均值）</p>
         </div>
-      {% endfor %}
-    </div>
-  {% endif %}
-
-  {# … 其他題目的 HTML … #}
-
-<h2>第 4 題：題目 4 標題 — 答案</h2>
-
-<div class="answer-box">
-  <h3>Q1: Trend (股票權重 = 50%、70%、90%)</h3>
-  <div class="trend-images">
-    {% for w, fn in result.plots_trend.items() %}
-      <div class="trend-item">
-        <img src="{{ url_for('static', filename='results/' + fn) }}" alt="Trend w={{ (w*100)|int }}%">
-        <p>w = {{ (w*100)|int }}% Stocks</p>
+        <div class="plot-item">
+          <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000" alt="靈敏度分析圖 (Profit 標準差 vs. P 平均值)">
+          <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
+        </div>
+        <div class="plot-item">
+          <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="1000" alt="P(Profit&gt;100) 機率變化圖">
+          <p>P(Profit&gt;100) 機率變化圖</p>
+        </div>
       </div>
-    {% endfor %}
-  </div>
-
-  <h3>Q2: CDF (股票權重 = 50%、70%、90%)</h3>
-  <div class="cdf-images">
-    {% for w, fn in result.plots_cdf.items() %}
-      <div class="cdf-item">
-        <img src="{{ url_for('static', filename='results/' + fn) }}" alt="CDF w={{ (w*100)|int }}%">
-        <p>w = {{ (w*100)|int }}% Stocks</p>
+    {% elif result.plots %}
+      {# ========== 其它題目通用圖表 ========== #}
+      <h3 class="sub-question">圖表</h3>
+      <div class="plot-box" style="display:flex; gap:2em; margin-top:1em;">
+        {% for label, fn in result.plots.items() %}
+          <div class="plot-item" style="text-align:center;">
+            <img src="{{ url_for('static', filename='results/' + fn) }}" width="500" alt="{{ label }}">
+            <p>{{ label }}</p>
+          </div>
+        {% endfor %}
       </div>
-    {% endfor %}
+    {% endif %}
+
+    {# ===== 第四題專用：三張 Trend 圖 + 三張 CDF 圖 ===== #}
+    {% if question.id == 4 %}
+      <h3 class="sub-question" style="margin-top:2em;">Q1: Trend (股票權重 = 50%、70%、90%)</h3>
+      <div class="trend-images" style="display:flex; gap:1em; margin-bottom:2em;">
+        {% for w, fn in result.plots_trend.items() %}
+          <div class="trend-item" style="text-align:center;">
+            <img src="{{ url_for('static', filename='results/' + fn) }}" alt="Trend w={{ (w*100)|int }}%" style="max-width:300px; border:1px solid #ccc;">
+            <p>w = {{ (w*100)|int }}% Stocks</p>
+          </div>
+        {% endfor %}
+      </div>
+
+      <h3 class="sub-question">Q2: CDF (股票權重 = 50%、70%、90%)</h3>
+      <div class="cdf-images" style="display:flex; gap:1em; margin-bottom:2em;">
+        {% for w, fn in result.plots_cdf.items() %}
+          <div class="cdf-item" style="text-align:center;">
+            <img src="{{ url_for('static', filename='results/' + fn) }}" alt="CDF w={{ (w*100)|int }}%" style="max-width:300px; border:1px solid #ccc;">
+            <p>w = {{ (w*100)|int }}% Stocks</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <p style="margin-top:2em;">
+      <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
+      <a href="{{ url_for('index') }}">回首頁</a>
+    </p>
   </div>
-</div>
-
-
-
-
-
-  <p>
-    <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
-    <a href="{{ url_for('index') }}">回首頁</a>
-  </p>
 </body>
 </html>
