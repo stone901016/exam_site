@@ -1,73 +1,95 @@
-# app.py
 import os
 import uuid
-import time
 from flask import Flask, request, jsonify, render_template
 from concurrent.futures import ProcessPoolExecutor
 from werkzeug.utils import secure_filename
+from types import SimpleNamespace
+
+# 注意：請先安裝 Flask
+#   pip install Flask
 
 app = Flask(__name__)
-app.config["UPLOAD_FOLDER"] = "/tmp"  
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  
+app.config["UPLOAD_FOLDER"] = "/tmp"
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 例如 50MB
 
-# ─── 1) 全域 jobs 字典，用來記錄各 job 狀態與結果 ─────────────────────────────
-# 格式範例：
-# jobs = {
-#   "uuid-string-1": {
-#       "status": "pending",  # 可為 "pending" / "running" / "finished" / "error"
-#       "result": None,       # 最後 run_full_simulation 回傳的 dict
-#       "error": None         # 如果執行錯誤，就放 Exception 字串
-#   },
-#   "uuid-string-2": { … }
-# }
+# ---------------------------------------------
+# (一) 全域 job 狀態字典：儲存第 5 題背景工作進度與結果
+# ---------------------------------------------
 jobs = {}
+# 範例格式：
+# jobs = {
+#   "some-uuid-1": {
+#       "status": "pending",    # pending / running / finished / error
+#       "result": None,         # 完成時由 run_full_simulation 回傳的 dict
+#       "error": None           # 若背景工作發生例外，把錯誤字串放在這裡
+#   },
+#   ...
+# }
 
-# ─── 2) 建立背景工作池 (ProcessPoolExecutor) ───────────────────────────────────
+# ---------------------------------------------
+# (二) 建立 ProcessPoolExecutor，專門跑第 5 題的耗時模擬
+# ---------------------------------------------
 executor = ProcessPoolExecutor(max_workers=2)
 
 
-# ─── 3) 背景工作函式：真正執行第 5 題的模擬，跑完之後更新 jobs ────────────────
+# ---------------------------------------------
+# (三) 第 5 題的背景執行函式：真正呼叫 solvers.question5.run_full_simulation()
+# ---------------------------------------------
 def background_question5(job_id, saved_file_path):
     """
-    這邊會在另一個 process/thread 中執行 (由 executor.submit 呼叫)，
-    用來跑 run_full_simulation(...) 這個耗時巨大的函式。
-    成功跑完之後，把 jobs[job_id]['status'] 設成 "finished"，並把 result 設回字典。
-    如果發生 Exception，則把 status 設為 "error"，並把錯誤訊息存到 jobs[job_id]['error']。
+    在背景中執行第5題的模擬流程。成功時把結果寫到 jobs[job_id]["result"]，
+    若例外則記錄到 jobs[job_id]["error"]，並把狀態標成 'error'。
     """
-    from solvers.question5 import run_full_simulation
-
     try:
-        # 1) 將狀態從 pending -> running
-        jobs[job_id]["status"] = "running"
-        print(f"[BACKGROUND] ({job_id}) 開始執行 run_full_simulation…")
+        from solvers.question5 import run_full_simulation
+    except ImportError:
+        # 如果找不到 question5.py，直接把狀態設成 error
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"] = "無法匯入 solvers.question5 模組，請檢查是否存在。"
+        return
 
-        # 2) 真正跑 100,000 次模擬＋權重格點搜尋
-        result_dict = run_full_simulation(saved_file_path, n_sim=100_000)
-
-        # 3) 完成後，更新狀態與結果
+    # 把 job 狀態設為 running
+    jobs[job_id]["status"] = "running"
+    try:
+        # n_sim 參數預設改為 100000
+        result_dict = run_full_simulation(saved_file_path, n_sim=100000)
         jobs[job_id]["status"] = "finished"
         jobs[job_id]["result"] = result_dict
-        print(f"[BACKGROUND] ({job_id}) run_full_simulation 已完成。")
-
     except Exception as e:
-        # 若發生任何 Exception，就把狀態設成 error，並且把錯誤訊息放進去
         jobs[job_id]["status"] = "error"
         jobs[job_id]["error"] = str(e)
-        print(f"[BACKGROUND] ({job_id}) 執行時出錯：{e}")
 
 
-# ─── 4) /question/<qid> 路由：第 1～4 題為同步呼叫，第 5 題改成背景 + 輪詢 ─────────
+# ---------------------------------------------
+# (四) /question/<qid>：第 1~4 題 (同步) & 第 5 題 (背景 + 非同步輪詢)
+# ---------------------------------------------
 @app.route("/question/<int:qid>", methods=["GET", "POST"])
 def question(qid):
-    # 如果 qid == 5，啟動特殊的「背景執行」流程
+    # 先把模組對應表準備好
+    from solvers import question1, question2, question3, question4
+    solvers_map = {
+        1: question1,
+        2: question2,
+        3: question3,
+        4: question4
+        # 5 題不放在這裡，因為 5 題要改成 Background Task
+    }
+
+    # 如果是第 5 題，要啟動「背景工作 + 輪詢」流程
     if qid == 5:
-        from solvers.question5 import QUESTION as q5_info
-
+        # GET: 只顯示「上傳檔 + 產生答案」表單，並留空 result（顯示 status=pending）
         if request.method == "GET":
-            # 只顯示回答頁面模板 (還未產生結果)
-            return render_template("answer.html", question=q5_info, result=None)
+            # 要把 question 也傳給 template：先嘗試取 solvers.question5.QUESTION
+            # 若不存在，就自行產生一個簡易的 Namespace
+            try:
+                from solvers.question5 import QUESTION as q5_info
+                question_info = q5_info
+            except (ImportError, AttributeError):
+                question_info = SimpleNamespace(id=5, title="題目 5 標題")
 
-        # POST：上傳檔案後，立即開一個 background job，並回傳 job_id
+            return render_template("answer.html", question=question_info, result=None)
+
+        # POST: 收到檔案後，就立刻回傳 job_id，並把背景工作交給 executor
         if "file" not in request.files:
             return "請務必上傳檔案", 400
 
@@ -76,32 +98,31 @@ def question(qid):
         saved_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         uploaded_file.save(saved_path)
 
-        # 產生一個 job_id
+        # 產生 job_id，並在 jobs 字典中紀錄初始狀態
         job_id = str(uuid.uuid4())
         jobs[job_id] = {"status": "pending", "result": None, "error": None}
 
-        # 提交給背景工作池去執行，立刻回應不用等
+        # 提交給背景執行，不等待結果
         executor.submit(background_question5, job_id, saved_path)
 
-        # 回傳 job_id 給前端 (HTTP 202 Accepted)
+        # 立刻回傳 job_id 給前端，HTTP status 202 (Accepted)
         return jsonify({"job_id": job_id}), 202
 
-    # 如果 qid 在 1~4 範圍內，維持原本同步執行的流程
-    from solvers import question1, question2, question3, question4
-    solvers_map = {
-        1: question1,
-        2: question2,
-        3: question3,
-        4: question4
-    }
+    # 如果不是第 5 題，就走原本同步邏輯 (第 1~4 題)
     if qid not in solvers_map:
         return "此題目尚未實作", 404
 
     mod = solvers_map[qid]
+    # GET: 僅顯示「上傳檔 + 產生答案」表單
     if request.method == "GET":
-        return render_template("answer.html", question=mod.QUESTION, result=None)
+        # 同樣的，先嘗試用 mod.QUESTION 並傳給前端；若不存在，就隨便產生一個 Namespace
+        try:
+            question_info = mod.QUESTION
+        except AttributeError:
+            question_info = SimpleNamespace(id=qid, title=f"題目 {qid} 標題")
+        return render_template("answer.html", question=question_info, result=None)
 
-    # POST：上傳檔案後，同步呼叫 mod.solve(...)
+    # POST: 使用者上傳檔案，同步呼叫 mod.solve()，再 render 結果
     if "file" not in request.files:
         return "請務必上傳檔案", 400
 
@@ -115,10 +136,18 @@ def question(qid):
     except Exception as e:
         return f"伺服器執行錯誤：{str(e)}", 500
 
-    return render_template("answer.html", question=mod.QUESTION, result=result)
+    # 同樣地，保險起見給 question_info
+    try:
+        question_info = mod.QUESTION
+    except AttributeError:
+        question_info = SimpleNamespace(id=qid, title=f"題目 {qid} 標題")
+
+    return render_template("answer.html", question=question_info, result=result)
 
 
-# ─── 5) /question/5/status/<job_id>：查詢第 5 題背景工作狀態 ──────────────────────
+# ---------------------------------------------
+# (五) 第 5 題的輪詢 API：/question/5/status/<job_id>
+# ---------------------------------------------
 @app.route("/question/5/status/<job_id>", methods=["GET"])
 def question5_status(job_id):
     if job_id not in jobs:
@@ -126,18 +155,25 @@ def question5_status(job_id):
 
     job = jobs[job_id]
     return jsonify({
-        "status": job["status"],   # pending / running / finished / error
-        "error": job["error"],     # 如果執行失敗，顯示錯誤訊息
-        "result": job["result"]    # 當 status=="finished" 時，才會是完整的 dict
+        "status": job["status"],
+        "error": job["error"],
+        "result": job["result"]
     })
 
 
-# ─── 6) 首頁（無須修改） ───────────────────────────────────────────────────────
+# ---------------------------------------------
+# (六) 首頁 & 其他
+# ---------------------------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
+@app.errorhandler(404)
+def page_not_found(e):
+    return "404: 此題目尚未實作", 404
+
+
 if __name__ == "__main__":
-    # Gunicorn 上線時請自行把 timeout 設長一點 (或根本不需理會，因為已改成 background)
+    # 注意：如果直接用 flask run 或 python app.py，debug=True 方便開發。
     app.run(host="0.0.0.0", port=8080, debug=True)
