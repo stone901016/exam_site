@@ -9,21 +9,16 @@
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
   <div class="answer-box">
-    {# ==================== 第一題摘要顯示 ==================== #}
+    {# Q1 摘要顯示 #}
     {% if question.id == 1 %}
       <h3 class="sub-question">摘要</h3>
       <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
       <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
     {% endif %}
 
-    {# ==================== 除了第 3 題、第 4 題以外，其餘題目的表格（mapping 顯示） ==================== #}
-    {% for key, val in result.items() if key != 'plots' and key != '盈利圖檔案' and key != '靈敏度圖檔案' and key != '機率變化圖檔案' and key != 'plots_trend' and key != 'plots_cdf' %}
-      {% if question.id != 1 or (question.id == 1 and key not in [
-            "最佳分布（賠償金額）",
-            "分布參數（賠償金額）",
-            "最佳分布（賠款率）",
-            "分布參數（賠款率）"
-         ]) %}
+    {# 其他題目用 table 顯示（除了 Q1 的摘要） #}
+    {% for key, val in result.items() if key != 'plots' and key not in ["最佳分布（賠償金額）","分布參數（賠償金額）","最佳分布（賠款率）","分布參數（賠款率）"] %}
+      {% if question.id != 1 %}
         <div style="margin-bottom:1em;">
           <strong class="sub-question">{{ key }}</strong>
           {% if val is mapping %}
@@ -55,77 +50,62 @@
         </div>
       {% endif %}
     {% endfor %}
+  </div>
 
-    {# ==================== 第 3 題專屬圖表顯示 ==================== #}
-    {% if question.id == 3 %}
-      <h3 class="sub-question">圖表</h3>
-      <div class="plot-box">
-        <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000">
-          <p>盈利圖（Profit vs. P 平均值）</p>
-        </div>
-        <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000">
-          <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
-        </div>
-        <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="1000">
-          <p>P(Profit&gt;100) 機率變化圖</p>
-        </div>
+  {# 第三題專用區塊 #}
+  {% if question.id == 3 %}
+    <h3 class="sub-question">圖表</h3>
+    <div class="plot-box">
+      <div class="plot-item">
+        <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000">
+        <p>盈利圖（Profit vs. P 平均值）</p>
       </div>
-    {% endif %}
+      <div class="plot-item">
+        <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000">
+        <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
+      </div>
+      <div class="plot-item">
+        <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="1000">
+        <p>P(Profit&gt;100) 機率變化圖</p>
+      </div>
+    </div>
+  {% endif %}
 
-    {# ==================== 第 1~2 題與第 4 題共用的「其它題目圖表」迴圈 ==================== #}
-    {% if question.id != 3 %}
-      {% if result.plots %}
-        <h3 class="sub-question">圖表</h3>
-        <div class="plot-box">
-          {% for label, fn in result.plots.items() %}
-            <div class="plot-item">
-              <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
-              <p>{{ label }}</p>
-            </div>
-          {% endfor %}
+  {# 第四題專用圖表顯示 #}
+  {% if question.id == 4 %}
+    <h3>Q1: Trend (股票權重 = 50%、70%、90%)</h3>
+    <div class="trend-images">
+      {% for w, fn in result.plots_trend.items() %}
+        <div class="trend-item">
+          <img src="{{ url_for('static', filename='results/' + fn) }}" alt="Trend w={{ (w*100)|int }}%" width="700">
+          <p>w = {{ (w*100)|int }}% 股票</p>
+          <p>
+            X 軸：年齡 (30 → 60)，<br>
+            Y 軸：累積價值 (含每年投入 10,000 元、2.2% 通膨)<br>
+            說明：此圖顯示投資人從 30 歲到 60 歲，<br>
+            每年投入 10,000 元，在不同股票權重 ({{ (w*100)|int }}%) 下，<br>
+            模擬 100,000 次後的各條路徑（淡藍色）以及平均路徑（紅色粗線）。
+          </p>
         </div>
-      {% endif %}
-    {% endif %}
+      {% endfor %}
+    </div>
 
-    {# ==================== 第 4 題專屬顯示區塊 ==================== #}
-   {% if question.id == 4 %}
-    <div class="answer-box">
-      <h3>Q1: Trend (股票權重 = 50%、70%、90%)</h3>
-      <div class="trend-images">
-        {% for w, fn in result.plots_trend.items() %}
-          <div class="trend-item">
-            <img src="{{ url_for('static', filename='results/' + fn) }}" alt="Trend w={{ (w*100)|int }}%" width="700">
-            <p>w = {{ (w*100)|int }}% 股票</p>
-            <!-- 中文說明：X/Y 軸意義，以及此圖代表什麼 -->
-            <p>
-              X 軸：年齡 (30 → 60)，<br>
-              Y 軸：累積價值 (含每年投入 10,000 元、2.2% 通膨)<br>
-              說明：此圖展示投資人從 30 歲到 60 歲，在不同股票權重 ({{ (w*100)|int }}%) 下，<br>
-              模擬 100,000 次後各條路徑的淡藍色線，紅色粗線為所有路徑的平均累積走勢。
-            </p>
-          </div>
-        {% endfor %}
-      </div>
-
-      <h3>Q2: CDF (股票權重 = 50%、70%、90%)</h3>
-      <div class="cdf-images">
-        {% for w, fn in result.plots_cdf.items() %}
-          <div class="cdf-item">
-            <img src="{{ url_for('static', filename='results/' + fn) }}" alt="CDF w={{ (w*100)|int }}%" width="700">
-            <p>w = {{ (w*100)|int }}% 股票</p>
-            <!-- 中文說明：X/Y 軸意義，以及此圖代表什麼 -->
-            <p>
-              X 軸：60 歲時的最終累積價值，<br>
-              Y 軸：累積機率 (0→1)，<br>
-              說明：此圖展示在不同股票權重 ({{ (w*100)|int }}%) 下，<br>
-              100,000 次模擬所得 60 歲最終累積值的累積機率分佈 (CDF)。
-            </p>
-          </div>
-        {% endfor %}
-      </div>
+    <h3>Q2: CDF (股票權重 = 50%、70%、90%)</h3>
+    <div class="cdf-images">
+      {% for w, fn in result.plots_cdf.items() %}
+        <div class="cdf-item">
+          <img src="{{ url_for('static', filename='results/' + fn) }}" alt="CDF w={{ (w*100)|int }}%" width="700">
+          <p>w = {{ (w*100)|int }}% 股票</p>
+          <p>
+            X 軸：60 歲時的最終累積價值，<br>
+            Y 軸：累積機率 (0→1)，<br>
+            說明：此圖顯示在不同股票權重 ({{ (w*100)|int }}%) 下，<br>
+            100,000 次模擬所得 60 歲最終累積價值的累積機率分布 (CDF)。
+          </p>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
 
   <p>
     <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
