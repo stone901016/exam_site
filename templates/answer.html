@@ -9,33 +9,37 @@
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
   <div class="answer-box">
-
     <!-- ========== 第 1 題 ========== -->
     {% if question.id == 1 %}
-      {% if result %}
-        <h3 class="sub-question">摘要</h3>
-        <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
-        <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
-      {% else %}
+      {% if not result %}
+        <!-- 上傳檔案的表單 -->
         <form method="post" enctype="multipart/form-data">
           <p>請上傳保險理賠資料 Excel：<input type="file" name="file" required></p>
           <button type="submit">產生答案</button>
         </form>
+      {% else %}
+        <!-- 顯示第 1 題結果：分布名稱與參數 -->
+        <h3 class="sub-question">摘要</h3>
+        <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
+        <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
+
+        <!-- 如果第 1 題還有圖表，要一起顯示也可以在這裡加 -->
       {% endif %}
     {% endif %}
 
-    <!-- ========== 第 2、3、4 題 ========== -->
-    {% if question.id in [2, 3, 4] %}
+    <!-- ========== 第 2 題 ========== -->
+    {% if question.id == 2 %}
       {% if not result %}
+        <!-- 上傳檔案的表單 -->
         <form method="post" enctype="multipart/form-data">
-          <p>請上傳對應檔案：<input type="file" name="file" required></p>
+          <p>請上傳期權或 Value at Risk 所需的檔案：<input type="file" name="file" required></p>
           <button type="submit">產生答案</button>
         </form>
       {% else %}
+        <!-- 顯示第 2 題結果：表格 + 圖表 -->
         {% for key, val in result.items() %}
-          {# 第 3 題的三張圖檔需要到專屬區顯示，這裡先略過 #}
-          {% if question.id == 3 and (key in ["盈利圖檔案", "靈敏度圖檔案", "機率變化圖檔案"]) %}
-            {# 跳過 #}
+          {% if key == 'plots' %}
+            {# 圖表會在下面處理 #}
           {% else %}
             <div style="margin-bottom:1em;">
               <strong class="sub-question">{{ key }}</strong>
@@ -44,7 +48,7 @@
                   <thead>
                     <tr>
                       <th>參數</th>
-                      <th>數值{% if "賠款率" in key %}（%）{% endif %}</th>
+                      <th>數值{% if "賠率" in key %}（%）{% endif %}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -52,9 +56,8 @@
                       <tr>
                         <td>{{ k }}</td>
                         <td>
-                          {# 只要 v 是 number，就顯示到小數 4 位；否則直接顯示字串 #}
                           {% if v is number %}
-                            {{ '%.4f'|format(v) }}{% if "賠款率" in key %} %{% endif %}
+                            {{ '%.4f'|format(v) }}{% if "賠率" in key %} %{% endif %}
                           {% else %}
                             {{ v }}
                           {% endif %}
@@ -69,50 +72,155 @@
             </div>
           {% endif %}
         {% endfor %}
+
+        {% if result.plots %}
+          <h3 class="sub-question">圖表</h3>
+          <div class="plot-box">
+            {% for label, fn in result.plots.items() %}
+              <div class="plot-item">
+                <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
+                <p>{{ label }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
       {% endif %}
     {% endif %}
 
-    <!-- ========== 第 3 題專屬圖表區 ========== -->
-    {% if question.id == 3 and result %}
-      <h3 class="sub-question">圖表</h3>
-      <div class="plot-box">
-        <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000">
-          <p>盈利圖（Profit vs. P 平均值）</p>
-        </div>
-        <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000">
-          <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
-        </div>
-        <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="1000">
-          <p>P(Profit&gt;100) 機率變化圖</p>
-        </div>
-      </div>
-    {% endif %}
-
-    <!-- ========== 第 2、4 題共用圖表區 ========== -->
-    {% if question.id in [2, 4] and result and result.get('plots') %}
-      <h3 class="sub-question">圖表</h3>
-      <div class="plot-box">
-        {% for label, fn in result.plots.items() %}
-          <div class="plot-item">
-            <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
-            <p>{{ label }}</p>
-          </div>
+    <!-- ========== 第 3 題 ========== -->
+    {% if question.id == 3 %}
+      {% if not result %}
+        <!-- 上傳檔案的表單 -->
+        <form method="post" enctype="multipart/form-data">
+          <p>請上傳第 3 題所需資料：<input type="file" name="file" required></p>
+          <button type="submit">產生答案</button>
+        </form>
+      {% else %}
+        <!-- 顯示第 3 題結果：文字表格 + 三張圖 -->
+        {% for key, val in result.items() %}
+          {% if key in ["盈利圖檔案", "靈敏度圖檔案", "機率變化圖檔案"] %}
+            {# 圖檔留到下面集中顯示 #}
+          {% else %}
+            <div style="margin-bottom:1em;">
+              <strong class="sub-question">{{ key }}</strong>
+              {% if val is mapping %}
+                <table class="result-table">
+                  <thead>
+                    <tr>
+                      <th>參數</th>
+                      <th>數值</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for k, v in val.items() %}
+                      <tr>
+                        <td>{{ k }}</td>
+                        <td>
+                          {% if v is number %}
+                            {{ '%.4f'|format(v) }}
+                          {% else %}
+                            {{ v }}
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                {{ val }}
+              {% endif %}
+            </div>
+          {% endif %}
         {% endfor %}
-      </div>
+
+        <h3 class="sub-question">圖表</h3>
+        <div class="plot-box">
+          <div class="plot-item">
+            <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000">
+            <p>盈利圖（Profit vs. P 平均值）</p>
+          </div>
+          <div class="plot-item">
+            <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000">
+            <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
+          </div>
+          <div class="plot-item">
+            <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="1000">
+            <p>P(Profit&gt;100) 機率變化圖</p>
+          </div>
+        </div>
+      {% endif %}
     {% endif %}
 
-    <!-- ========== 第 5 題暫留以前版本的表單／結果（如尚未完全整合請自行刪掉此段） ========== -->
+    <!-- ========== 第 4 題 ========== -->
+    {% if question.id == 4 %}
+      {% if not result %}
+        <!-- 上傳檔案的表單 -->
+        <form method="post" enctype="multipart/form-data">
+          <p>請上傳第 4 題所需 Excel：<input type="file" name="file" required></p>
+          <button type="submit">產生答案</button>
+        </form>
+      {% else %}
+        <!-- 顯示第 4 題結果：先顯示表格數值（如果有），再顯示圖表 -->
+        {% for key, val in result.items() %}
+          {% if key == 'plots' %}
+            {# 圖表留到下面顯示 #}
+          {% else %}
+            <div style="margin-bottom:1em;">
+              <strong class="sub-question">{{ key }}</strong>
+              {% if val is mapping %}
+                <table class="result-table">
+                  <thead>
+                    <tr>
+                      <th>參數</th>
+                      <th>數值</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for k, v in val.items() %}
+                      <tr>
+                        <td>{{ k }}</td>
+                        <td>
+                          {% if v is number %}
+                            {{ '%.4f'|format(v) }}
+                          {% else %}
+                            {{ v }}
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                {{ val }}
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+
+        {% if result.plots %}
+          <h3 class="sub-question">圖表</h3>
+          <div class="plot-box">
+            {% for label, fn in result.plots.items() %}
+              <div class="plot-item">
+                <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
+                <p>{{ label }}</p>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+
+    <!-- ========== 第 5 題 ========== -->
     {% if question.id == 5 %}
       {% if not result %}
+        <!-- 上傳檔案的表單（同步版本） -->
         <form method="post" enctype="multipart/form-data">
           <p>請上傳 SustainableRetirementWithdrawals.xls：<input type="file" name="file" required></p>
           <button type="submit">產生答案</button>
         </form>
-        <p>（第 5 題背景工作尚未開始，請先把程式後端同步改回跑「同步」版本，否則會出現無法顯示結果的情況。）</p>
       {% else %}
+        <!-- 第 5 題同步計算結果範例（可依實際 result 結構自行調整） -->
         {% for key, val in result.items() %}
           <div style="margin-bottom:1em;">
             <strong class="sub-question">{{ key }}</strong>
@@ -144,7 +252,8 @@
             {% endif %}
           </div>
         {% endfor %}
-        {% if result.get('plots') %}
+
+        {% if result.plots %}
           <h3 class="sub-question">圖表</h3>
           <div class="plot-box">
             {% for label, fn in result.plots.items() %}
@@ -157,7 +266,6 @@
         {% endif %}
       {% endif %}
     {% endif %}
-
   </div>
 
   <p>
