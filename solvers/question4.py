@@ -45,7 +45,7 @@ def solve(file_path):
     #    - 模擬次數 N = 10,000
     # -------------------------------------------------------------------
     years = 31
-    N = 10_000
+    N = 100_000
     inflation = 1.022  # 年通膨率 2.2%
     deposit = 10_000   # 每年投入金額
 
@@ -63,7 +63,7 @@ def solve(file_path):
         # sims[i,t] = 第 i 條模擬路徑，在第 t 年(30+t 歲) 的累積價值
         sims = np.zeros((N, years))
 
-        # 針對 10,000 次模擬，各年投入並產生隨機報酬
+        # 針對 100,000 次模擬，各年投入並產生隨機報酬
         for i in range(N):
             for t in range(years):
                 # 當年實際投入金額 (考慮通膨)
@@ -83,7 +83,7 @@ def solve(file_path):
         fn_trend = f"q4_trend_{int(w*100)}.png"
         plt.figure(figsize=(9, 6))
 
-        # 1) 先畫所有 10,000 條路徑 (淡藍色)
+        # 1) 先畫所有 100,000 條路徑 (淡藍色)
         for i in range(N):
             plt.plot(
                 ages,
