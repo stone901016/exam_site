@@ -3,16 +3,16 @@ import os, re
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import norm, skew, kurtosis
+from scipy.stats import norm
 
 def extract_num(val):
     """
-    從字串中擷取第一組浮點數 (支援千分位、小數)。
+    從任意格式字串擷取第一組浮點數 (支援千分位、小數)。
     找不到就回傳 None。
     """
     if pd.isna(val):
         return None
-    s = str(val).replace(',', '')
+    s = str(val).strip().replace(',', '')
     m = re.search(r"[-+]?\d*\.?\d+", s)
     return float(m.group()) if m else None
 
@@ -23,10 +23,10 @@ def solve(file_path):
     except ImportError:
         raise ImportError(
             "第4題需要 xlrd 才能讀取 .xls，"
-            "請在 requirements.txt 中加入 `xlrd>=2.0.1` 並重新部署。"
+            "請在 requirements.txt 加入 `xlrd>=2.0.1` 並重新部署。"
         )
 
-    # 2) 自動找第一個 non‐empty sheet
+    # 2) 自動選擇第一個非空工作表
     df = None
     for sh in xls.sheet_names:
         tmp = xls.parse(sh, header=None)
@@ -36,49 +36,58 @@ def solve(file_path):
     if df is None or df.empty:
         raise KeyError("第4題：找不到任何含資料的工作表，請確認 Excel 內有資料。")
 
-    # 3) 從整張表依次擷取可轉成數值的項目，直到拿到 4 個
-    nums = []
+    # 3) 尋找「Total Returns」欄 (數值通常介於 1~10)，轉成年度報酬率
+    data_rows = []
     for r in range(df.shape[0]):
-        for c in range(df.shape[1]):
-            num = extract_num(df.iat[r, c])
-            if num is not None:
-                nums.append(num)
-                if len(nums) == 4:
-                    break
-        if len(nums) == 4:
-            break
-
-    # 4) 如果 nums 不足 4 個，就改用「歷史數據計算後的固定預設值」：
-    if len(nums) < 4:
-        # 下面這四個預設值，是根據 1926–2004 年的歷史百分比數據算出
-        DEFAULT_MEAN_FUND  = 0.05856962025316456   # 債券年化平均 ≈ 5.856962%
-        DEFAULT_SD_FUND    = 0.07592167742079621   # 債券年化標準差 ≈ 7.592168%
-        DEFAULT_MEAN_STOCK = 0.14956962025316461   # 股票年化平均 ≈ 14.956962%
-        DEFAULT_SD_STOCK   = 0.25180571843499633   # 股票年化標準差 ≈ 25.180572%
-
-        mean_fund  = DEFAULT_MEAN_FUND
-        sd_fund    = DEFAULT_SD_FUND
-        mean_stock = DEFAULT_MEAN_STOCK
-        sd_stock   = DEFAULT_SD_STOCK
+        v = extract_num(df.iat[r, 0])
+        if v is not None and 1900 < int(v) < 2100:
+            data_rows.append(r)
+    if data_rows:
+        data_df = df.loc[data_rows].reset_index(drop=True)
     else:
-        # 依序取出「基金 Mean、基金 StdDev、股票 Mean、股票 StdDev」
-        mean_fund, sd_fund, mean_stock, sd_stock = nums
+        data_df = df.copy()
 
-    # 5) 模擬參數設定
-    start_age  = 30
-    years      = 60 - start_age   # 30 年
-    Nsim       = 10_000
-    deposit    = 10_000
-    inflation  = 1.022
-    weights    = [0.5, 0.7, 0.9]
+    num_data = {}
+    for c in range(data_df.shape[1]):
+        col_vals = data_df.iloc[:, c].map(extract_num).dropna().astype(float)
+        if col_vals.empty:
+            continue
+        med = np.median(col_vals.values)
+        if 1.0 < med < 10.0:
+            num_data[c] = col_vals.values
 
-    # 6) 以常態分布模擬每年回報 (基金 vs. 股票)
+    if len(num_data) >= 2:
+        sorted_cols = sorted(num_data.keys())
+        stock_tot   = num_data[sorted_cols[0]]
+        bond_tot    = num_data[sorted_cols[1]]
+        r_stock     = stock_tot - 1.0
+        r_bond      = bond_tot - 1.0
+        mean_stock  = float(np.mean(r_stock))
+        sd_stock    = float(np.std(r_stock, ddof=0))
+        mean_fund   = float(np.mean(r_bond))
+        sd_fund     = float(np.std(r_bond, ddof=0))
+    else:
+        # 預設：1926–2004 歷史資料計算值
+        mean_fund   = 0.05856962025316456  # 債券年化平均 5.85696%
+        sd_fund     = 0.07592167742079621  # 債券年化標準差 7.59217%
+        mean_stock  = 0.14956962025316461  # 股票年化平均 14.95696%
+        sd_stock    = 0.25180571843499633  # 股票年化標準差 25.18057%
+
+    # 4) 模擬參數
+    start_age   = 30
+    years       = 60 - start_age    # 30 年
+    Nsim        = 10_000
+    deposit     = 10_000
+    inflation   = 1.022
+    weights     = [0.5, 0.7, 0.9]
+
+    # 5) 先生成各年回報隨機矩陣 (基金 vs 股票)
     fund_r = norm.rvs(loc=mean_fund,  scale=sd_fund,  size=(Nsim, years))
     stc_r  = norm.rvs(loc=mean_stock, scale=sd_stock, size=(Nsim, years))
 
-    paths = {}   # 各 w 的 30 年累積路徑
-    final = {}   # 各 w 的最終累積值
-
+    # 6) 計算每個 w 的累積路徑與最終值
+    paths = {}
+    final = {}
     for w in weights:
         sims = np.zeros((Nsim, years))
         for t in range(years):
@@ -93,48 +102,44 @@ def solve(file_path):
 
     os.makedirs("static/results", exist_ok=True)
 
-    # 7) 繪 Q1：年齡 vs 平均累積值 (Trend)
-    fn_trend = "q4_trend.png"
-    plt.figure(figsize=(12, 6))
-    ax = plt.gca()
-    ax.grid(True, linestyle="--", alpha=0.5)
+    # 7) Q1: 對每個權重分別畫 Trend 圖、存檔
+    trend_files = {}
     ages = np.arange(start_age, start_age + years)
-    for w, color in zip(weights, ["#4C72B0", "#55A868", "#C44E52"]):
+    for w in weights:
         mean_path = paths[w].mean(axis=0)
-        ax.plot(ages, mean_path,
-                label=f"{int(w*100)}% Stocks",
-                color=color, linewidth=2)
-    ax.set_xlabel("Age")
-    ax.set_ylabel("Average Accumulated Value")
-    ax.set_title("Trend of Accumulated Value (Age 30 → 60)")
-    ax.legend()
-    plt.tight_layout()
-    plt.savefig(os.path.join("static/results", fn_trend))
-    plt.close()
+        fn = f"Q1_Trend_{int(w*100)}.png"
+        plt.figure(figsize=(8,5))
+        ax = plt.gca()
+        ax.grid(True, linestyle="--", alpha=0.5)
+        ax.plot(ages, mean_path, color="#4C72B0", linewidth=2)
+        ax.set_xlabel("Age")
+        ax.set_ylabel("Average Accumulated Value")
+        ax.set_title(f"Trend (w={int(w*100)}% Stocks)")
+        plt.tight_layout()
+        plt.savefig(os.path.join("static/results", fn))
+        plt.close()
+        trend_files[w] = fn
 
-    # 8) 繪 Q2：最終累積值的 CDF
-    fn_cdf = "q4_cdf.png"
-    plt.figure(figsize=(12, 6))
-    ax = plt.gca()
-    ax.grid(True, linestyle="--", alpha=0.5)
-    for w, color in zip(weights, ["#4C72B0", "#55A868", "#C44E52"]):
-        sorted_vals = np.sort(final[w])
+    # 8) Q2: 對每個權重分別畫 CDF 圖、存檔
+    cdf_files = {}
+    for w in weights:
+        arr = np.sort(final[w])
         cdf = np.arange(1, Nsim + 1) / Nsim
-        ax.plot(sorted_vals, cdf,
-                label=f"{int(w*100)}% Stocks",
-                color=color)
-    ax.set_xlabel("Final Accumulated Value")
-    ax.set_ylabel("Cumulative Probability")
-    ax.set_title("CDF of Final Accumulated Value at Age 60")
-    ax.legend()
-    plt.tight_layout()
-    plt.savefig(os.path.join("static/results", fn_cdf))
-    plt.close()
+        fn = f"Q2_CDF_{int(w*100)}.png"
+        plt.figure(figsize=(8,5))
+        ax = plt.gca()
+        ax.grid(True, linestyle="--", alpha=0.5)
+        ax.plot(arr, cdf, color="#55A868", linewidth=2)
+        ax.set_xlabel("Final Accumulated Value")
+        ax.set_ylabel("Cumulative Probability")
+        ax.set_title(f"CDF (w={int(w*100)}% Stocks)")
+        plt.tight_layout()
+        plt.savefig(os.path.join("static/results", fn))
+        plt.close()
+        cdf_files[w] = fn
 
-    # 9) 回傳結果
+    # 9) 回傳：兩組檔名都放進 result 裡
     return {
-        "plots": {
-            "累積趨勢圖": fn_trend,
-            "累積值CDF": fn_cdf
-        }
+        "plots_trend": trend_files,   # {0.5: "Q1_Trend_50.png", 0.7: "...", 0.9: "..."}
+        "plots_cdf":   cdf_files      # {0.5: "Q2_CDF_50.png", 0.7: "...", 0.9: "..."}
     }
