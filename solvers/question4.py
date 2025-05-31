@@ -5,111 +5,132 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def solve(file_path):
-    # 1) 讀取 Excel 中的「股票報酬率」與「基金報酬率」欄位（年化，% 格式）
+    # -------------------------------------------------------------------
+    # 1) 先從 Excel 嘗試抓取「基金 Mean」、「基金 StdDev」、「股票 Mean」、「股票 StdDev」
+    # 格式化檢查：如果欄位不存在或含非數值，則套用預設值
+    # 預設值示例：基金年化平均 6%、年化標準差 12%；股票年化平均 8%、年化標準差 18%
+    # 你可依照專案實際數值自行調整 DEFAULT_* 這四個數字
+    # -------------------------------------------------------------------
     df = pd.read_excel(file_path)
 
-    # 優先使用欄位名稱；若不存在，就嘗試取前兩個 numeric 欄位；再不行就用預設常態分布參數
-    if "StockReturn" in df.columns and "BondReturn" in df.columns:
-        r_stock = pd.to_numeric(df["StockReturn"], errors="coerce").dropna().values / 100.0
-        r_fund  = pd.to_numeric(df["BondReturn"],    errors="coerce").dropna().values / 100.0
-    else:
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        if len(numeric_cols) >= 2:
-            r_stock = pd.to_numeric(df[numeric_cols[0]], errors="coerce").dropna().values / 100.0
-            r_fund  = pd.to_numeric(df[numeric_cols[1]], errors="coerce").dropna().values / 100.0
-        else:
-            # 如果還是不夠，就使用專案中預設的常態分布參數
-            DEFAULT_MEAN_FUND  = 0.06   # 年化 6%
-            DEFAULT_SD_FUND    = 0.12   # 年化標準差 12%
-            DEFAULT_MEAN_STOCK = 0.08   # 年化 8%
-            DEFAULT_SD_STOCK   = 0.18   # 年化標準差 18%
-            rng = np.random.default_rng()
-            r_stock = rng.normal(DEFAULT_MEAN_STOCK, DEFAULT_SD_STOCK, size=1000)
-            r_fund  = rng.normal(DEFAULT_MEAN_FUND,  DEFAULT_SD_FUND,  size=1000)
+    # 嘗試自 Excel 找到該欄位並轉成 float
+    def try_get_float(col_name):
+        if col_name in df.columns:
+            tmp = df[col_name].dropna()
+            try:
+                return float(tmp.iloc[0])
+            except:
+                return None
+        return None
 
-    # 2) 模擬參數
-    start_age = 30
-    end_age   = 60
-    years     = end_age - start_age    # 共 30 年
-    N         = 10000                 # 模擬 10,000 次
-    inflation = 1.022
-    deposit   = 10000                 # 每年投資 10,000 元
+    mean_fund  = try_get_float("基金 Mean")
+    sd_fund    = try_get_float("基金 StdDev")
+    mean_stock = try_get_float("股票 Mean")
+    sd_stock   = try_get_float("股票 StdDev")
 
-    weights = [0.5, 0.7, 0.9]          # 股票權重：50%、70%、90%
+    # 如果其中任一值抓不到，就套用專案給定的預設數值
+    if mean_fund is None or sd_fund is None or mean_stock is None or sd_stock is None:
+        # 以下四個數值需改成你專案「Accumulate.xls」或其他題目中所提供的資料計算出來的結果
+        DEFAULT_MEAN_FUND  = 0.059  # 例如：基金年化平均約 5.9%
+        DEFAULT_SD_FUND    = 0.115  # 例如：基金年化標準差約 11.5%
+        DEFAULT_MEAN_STOCK = 0.147  # 例如：股票年化平均約 14.7%
+        DEFAULT_SD_STOCK   = 0.295  # 例如：股票年化標準差約 29.5%
 
-    # 3) 針對每個權重 w，模擬 shape=(N, years) 的累積價值矩陣
-    sims_dict = {}
-    for w in weights:
-        sims = np.zeros((N, years))
-        for t in range(years):
-            # 當年投入考慮通膨
-            dep = deposit * (inflation ** t)
-            # 隨機從歷史/產生的報酬率中抽樣
-            r_choice_stock = np.random.choice(r_stock, size=N, replace=True)
-            r_choice_fund  = np.random.choice(r_fund,  size=N, replace=True)
-            r = w * r_choice_stock + (1.0 - w) * r_choice_fund
-            if t == 0:
-                sims[:, 0] = dep * (1 + r)
-            else:
-                sims[:, t] = sims[:, t-1] * (1 + r) + dep
-        sims_dict[w] = sims
+        mean_fund  = DEFAULT_MEAN_FUND
+        sd_fund    = DEFAULT_SD_FUND
+        mean_stock = DEFAULT_MEAN_STOCK
+        sd_stock   = DEFAULT_SD_STOCK
 
-    # 4) 確保輸出資料夾存在
-    os.makedirs("static/results", exist_ok=True)
+    # -------------------------------------------------------------------
+    # 2) 模擬參數設定
+    # 投資人從 30 歲到 60 歲退休：共 31 年(含 30、60)
+    # 每年投入 10,000 元(考慮 2.2% 通膨)
+    # 每年投資部分放在股票、部分放在基金；各自採常態分布隨機
+    # 模擬次數 N = 10,000
+    # -------------------------------------------------------------------
+    years = 31
+    N = 10_000
+    inflation = 1.022  # 年通膨率 2.2%
+    deposit = 10_000  # 每年投入金額
 
-    plots_trend = {}
+    # 欲比較的三種股票權重
+    weights = [0.5, 0.7, 0.9]
+
+    # 最後要回傳：trend 圖和 cdf 圖的檔名
+    plots_trend = {}  # { 0.5: "q4_trend_50.png", ... }
     plots_cdf   = {}
 
-    ages = np.arange(start_age, end_age)  # X 軸：「Age」從 30 到 59
+    # 建立目錄
+    os.makedirs("static/results", exist_ok=True)
 
-    # Q1: Trend → 同張圖畫出 10,000 條路徑 + 平均值 (粗紅線)
+    # 每個權重依序模擬
     for w in weights:
-        sims = sims_dict[w]             # shape=(N, years)
-        mean_path = sims.mean(axis=0)   # 各年份的平均累積值
+        # sims[i,t] = 第 i 次模擬，到第 t 年後的累積價值 (t=0..30)
+        sims = np.zeros((N, years))
+        ages = np.arange(30, 30 + years)  # [30,31,...,60]
 
-        fn_trend = f"q4_trend_{int(w*100)}.png"
-        plt.figure(figsize=(12, 6))
-
-        # 4.1) 所有模擬路徑 (淡藍線)
+        # 每次模擬各年投入 + 投資報酬
         for i in range(N):
-            plt.plot(ages, sims[i, :],
-                     color="blue", alpha=0.01, linewidth=0.5)
-        # 4.2) 平均累積值路徑 (粗紅線)
-        plt.plot(ages, mean_path,
-                 color="red", linewidth=2.5, label="Average Path")
-        plt.title(f"Trend (w={int(w*100)}% stocks)", fontsize=16)
-        plt.xlabel("Age", fontsize=14)
-        plt.ylabel("Accumulated Value", fontsize=14)
+            # 每條路徑從零開始
+            prev_val = 0.0
+            for t in range(years):
+                # 當年投入考量通膨：第 t 年的折算金額 = deposit * (inflation ** t)
+                dep = deposit * (inflation ** t)
+
+                # 隨機取一筆股票回報、基金回報 (年化常態)
+                r_stock = np.random.normal(mean_stock, sd_stock)
+                r_fund  = np.random.normal(mean_fund, sd_fund)
+
+                # 投資組合當年報酬
+                r_portfolio = w * r_stock + (1 - w) * r_fund
+
+                # 計算當年 End Value
+                if t == 0:
+                    sims[i, t] = dep * (1 + r_portfolio)
+                else:
+                    sims[i, t] = sims[i, t - 1] * (1 + r_portfolio) + dep
+
+        # 2.1) 繪製 Trend 圖 (所有路徑 + 平均路徑)
+        fn_trend = f"q4_trend_{int(w*100)}.png"
+        plt.figure(figsize=(9, 6))
+        # 先把所有 N 條路徑都畫出來 (淡藍色)
+        for i in range(N):
+            plt.plot(ages, sims[i, :], color="skyblue", linewidth=0.5, alpha=0.02)
+
+        # 再畫上「平均路徑」(粗紅線)
+        mean_path = sims.mean(axis=0)  # 每個年度的平均累積值
+        plt.plot(ages, mean_path, color="red", linewidth=2.5, label="平均路徑")
+
+        # 中文 X/Y 軸
+        plt.xlabel("年齡", fontsize=12)
+        plt.ylabel("累積價值 (元)", fontsize=12)
+        plt.title(f"Trend (w={int(w*100)}% 股票)", fontsize=14)
+        plt.legend(loc="upper left", fontsize=12)
         plt.grid(True, linestyle="--", alpha=0.5)
-        plt.legend()
         plt.tight_layout()
         plt.savefig(os.path.join("static", "results", fn_trend))
         plt.close()
-
         plots_trend[w] = fn_trend
 
-    # Q2: CDF → 每個權重取最終累積值畫累積機率曲線
-    for w in weights:
-        sims = sims_dict[w]
+        # 2.2) 繪製 CDF 圖 (取 sims[:, -1]：最後一年 60 歲 的累積值)
         final_vals = sims[:, -1]
         sorted_vals = np.sort(final_vals)
-        cdf = np.arange(1, N+1) / N
+        cdf = np.arange(1, N + 1) / N
 
         fn_cdf = f"q4_cdf_{int(w*100)}.png"
-        plt.figure(figsize=(12, 6))
-        plt.plot(sorted_vals, cdf,
-                 color="green", linewidth=2)
-        plt.title(f"CDF (w={int(w*100)}% stocks)", fontsize=16)
-        plt.xlabel("Final Accumulated Value", fontsize=14)
-        plt.ylabel("Cumulative Probability", fontsize=14)
+        plt.figure(figsize=(9, 6))
+        plt.plot(sorted_vals, cdf, color="green", linewidth=2)
+        plt.xlabel("最終累積價值 (元)", fontsize=12)
+        plt.ylabel("累積機率", fontsize=12)
+        plt.title(f"CDF (w={int(w*100)}% 股票)", fontsize=14)
         plt.grid(True, linestyle="--", alpha=0.5)
         plt.tight_layout()
         plt.savefig(os.path.join("static", "results", fn_cdf))
         plt.close()
-
         plots_cdf[w] = fn_cdf
 
+    # 回傳：只需要把兩組字典交給樣板即可
     return {
         "plots_trend": plots_trend,
-        "plots_cdf":   plots_cdf
+        "plots_cdf": plots_cdf
     }
