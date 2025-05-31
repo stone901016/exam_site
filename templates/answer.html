@@ -91,37 +91,38 @@
     {% endif %}
 
     {# ==================== 第 4 題專屬顯示區塊 ==================== #}
-    {% if question.id == 4 %}
-      <h3>Q1: Trend (股票權重 = 50%、70%、90%)</h3>
-      <div class="trend-images">
-        {% for w, fn in result.plots_trend.items() %}
-          <div class="trend-item" style="display:inline-block; margin-right:20px; text-align:center;">
-            <img src="{{ url_for('static', filename='results/' + fn) }}" alt="Trend w={{ (w*100)|int }}%" width="750">
-            <p>w = {{ (w*100)|int }}% 股票</p>
-            <p>
-              X 軸: 年齡 (30→60)<br>
-              Y 軸: 累積價值 (含每年投資 10,000 元、2.2% 通膨)<br>
-              <strong>說明：</strong>紅色粗線為 10,000 次模擬路徑的平均累積走勢，淡藍色為各次模擬路徑。
-            </p>
-          </div>
-        {% endfor %}
+   {% if question.id == 4 %}
+  <h3>Q1: Trend (股票權重 = 50%、70%、90%)</h3>
+  <div class="trend-images">
+    {% for w, fn in result.plots_trend.items() %}
+      <div class="trend-item" style="display:inline-block; margin-right:20px; text-align:center;">
+        <!-- 將圖檔寬度放大 1.5 倍（原本寬度 500→750） -->
+        <img src="{{ url_for('static', filename='results/' + fn) }}" alt="Trend w={{ (w*100)|int }}%" width="750">
+        <p>w = {{ (w*100)|int }}% 股票</p>
+        <p style="text-align:left; margin-top:8px;">
+          X 軸: 年齡 (30→60)<br>
+          Y 軸: 累積價值 (含每年投入 10,000 元、2.2% 通膨)<br>
+          <strong>說明：</strong>紅色粗線為 10,000 次模擬路徑的平均累積走勢，淡藍色為各次模擬路徑。
+        </p>
       </div>
+    {% endfor %}
+  </div>
 
-      <h3>Q2: CDF (股票權重 = 50%、70%、90%)</h3>
-      <div class="cdf-images">
-        {% for w, fn in result.plots_cdf.items() %}
-          <div class="cdf-item" style="display:inline-block; margin-right:20px; text-align:center;">
-            <img src="{{ url_for('static', filename='results/' + fn) }}" alt="CDF w={{ (w*100)|int }}%" width="750">
-            <p>w = {{ (w*100)|int }}% 股票</p>
-            <p>
-              X 軸: 最終累積價值 (60 歲)<br>
-              Y 軸: 累積機率<br>
-              <strong>說明：</strong>以最終累積價值為橫軸，繪出累積機率 (CDF)。
-            </p>
-          </div>
-        {% endfor %}
+  <h3>Q2: CDF (股票權重 = 50%、70%、90%)</h3>
+  <div class="cdf-images">
+    {% for w, fn in result.plots_cdf.items() %}
+      <div class="cdf-item" style="display:inline-block; margin-right:20px; text-align:center;">
+        <img src="{{ url_for('static', filename='results/' + fn) }}" alt="CDF w={{ (w*100)|int }}%" width="750">
+        <p>w = {{ (w*100)|int }}% 股票</p>
+        <p style="text-align:left; margin-top:8px;">
+          X 軸: 最終累積價值 (60 歲)<br>
+          Y 軸: 累積機率<br>
+          <strong>說明：</strong>以最終累積價值為橫軸，繪出累積機率 (CDF)，顯示不同權重下 10,000 次模擬的分佈。
+        </p>
       </div>
-    {% endif %}
+    {% endfor %}
+  </div>
+{% endif %}
 
   </div>
 
