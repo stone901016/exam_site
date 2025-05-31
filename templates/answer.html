@@ -9,9 +9,8 @@
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
   <div class="answer-box">
-    <!-- ================================================ -->
-    <!-- (1) 第 1 題：顯示摘要，如果 result=None 就顯示上傳表單 -->
-    <!-- ================================================ -->
+
+    <!-- ========== 第 1 題 ========== -->
     {% if question.id == 1 %}
       {% if result %}
         <h3 class="sub-question">摘要</h3>
@@ -25,9 +24,7 @@
       {% endif %}
     {% endif %}
 
-    <!-- ================================================ -->
-    <!-- (2) 第 2、3、4 題：如果 result=None 就顯示上傳表單；有 result 就把字典項目顯示出來 -->
-    <!-- ================================================ -->
+    <!-- ========== 第 2、3、4 題 ========== -->
     {% if question.id in [2, 3, 4] %}
       {% if not result %}
         <form method="post" enctype="multipart/form-data">
@@ -36,62 +33,59 @@
         </form>
       {% else %}
         {% for key, val in result.items() %}
-          {# 第 3 題的三張圖，我們在下方另外顯示，這裡先略過它們 #}
-          {% if question.id == 3 and key in ["盈利圖檔案", "靈敏度圖檔案", "機率變化圖檔案"] %}
-            {% continue %}
-          {% endif %}
-
-          <div style="margin-bottom:1em;">
-            <strong class="sub-question">{{ key }}</strong>
-            {% if val is mapping %}
-              <table class="result-table">
-                <thead>
-                  <tr>
-                    <th>參數</th>
-                    <th>數值{% if "賠款率" in key %}（%）{% endif %}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for k, v in val.items() %}
+          {# 第 3 題有三張圖檔要等到後面專屬區才顯示，這裡先跳過 #}
+          {% if question.id == 3 and (key in ["盈利圖檔案", "靈敏度圖檔案", "機率變化圖檔案"]) %}
+            {# 略過，不顯示在此處 #}
+          {% else %}
+            <div style="margin-bottom:1em;">
+              <strong class="sub-question">{{ key }}</strong>
+              {% if val is mapping %}
+                <table class="result-table">
+                  <thead>
                     <tr>
-                      <td>{{ k }}</td>
-                      <td>
-                        {# 判斷 v 是否為可轉成浮點數的值 #}
-                        {% set is_float = False %}
-                        {% if v is number %}
-                          {% set is_float = True %}
-                          {% set float_val = v %}
-                        {% elif v is string %}
-                          {# 用正規式判斷，是否為數字或小數格式 #}
-                          {% if v is match("^-?\\d+(\\.\\d+)?$") %}
-                            {% set is_float = True %}
-                            {% set float_val = v|float %}
-                          {% else %}
-                            {% set is_float = False %}
-                          {% endif %}
-                        {% endif %}
-
-                        {% if is_float %}
-                          {{ '%.4f'|format(float_val) }}{% if "賠款率" in key %} %{% endif %}
-                        {% else %}
-                          {{ v }}
-                        {% endif %}
-                      </td>
+                      <th>參數</th>
+                      <th>數值{% if "賠款率" in key %}（%）{% endif %}</th>
                     </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            {% else %}
-              {{ val }}
-            {% endif %}
-          </div>
+                  </thead>
+                  <tbody>
+                    {% for k, v in val.items() %}
+                      <tr>
+                        <td>{{ k }}</td>
+                        <td>
+                          {# 判斷 v 是否為純數字或小數字串，若是就格式化；否則直接輸出 #}
+                          {% set is_float = False %}
+                          {% if v is number %}
+                            {% set is_float = True %}
+                            {% set float_val = v %}
+                          {% elif v is string %}
+                            {% if v is match("^-?\\d+(\\.\\d+)?$") %}
+                              {% set is_float = True %}
+                              {% set float_val = v|float %}
+                            {% else %}
+                              {% set is_float = False %}
+                            {% endif %}
+                          {% endif %}
+
+                          {% if is_float %}
+                            {{ '%.4f'|format(float_val) }}{% if "賠款率" in key %} %{% endif %}
+                          {% else %}
+                            {{ v }}
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                {{ val }}
+              {% endif %}
+            </div>
+          {% endif %}
         {% endfor %}
       {% endif %}
     {% endif %}
 
-    <!-- ================================================ -->
-    <!-- (3) 第 3 題專屬圖表區，如果有 result -->
-    <!-- ================================================ -->
+    <!-- ========== 第 3 題專屬圖表區 ========== -->
     {% if question.id == 3 and result %}
       <h3 class="sub-question">圖表</h3>
       <div class="plot-box">
@@ -110,9 +104,7 @@
       </div>
     {% endif %}
 
-    <!-- ================================================ -->
-    <!-- (4) 第 2 與第 4 題之「通用圖表區」，顯示 result.plots 內的所有圖 -->
-    <!-- ================================================ -->
+    <!-- ========== 第 2、4 題共用圖表區 ========== -->
     {% if question.id not in [1, 3, 5] and result and result.get('plots') %}
       <h3 class="sub-question">圖表</h3>
       <div class="plot-box">
@@ -125,12 +117,10 @@
       </div>
     {% endif %}
 
-    <!-- ================================================ -->
-    <!-- (5) 第 5 題：如果 result=None，顯示「背景任務輪詢」區塊；否則直接把 result 撈出來 -->
-    <!-- ================================================ -->
+    <!-- ========== 第 5 題 ========== -->
     {% if question.id == 5 %}
       {% if not result %}
-        <!-- (5-1) 尚無 result：顯示上傳表單 + 輪詢狀態 -->
+        <!-- (5-1) 尚無結果：顯示上傳表單＋輪詢狀態 -->
         <form id="q5-form" method="post" enctype="multipart/form-data">
           <p>請上傳 <strong>SustainableRetirementWithdrawals.xls</strong>：<input type="file" name="file" required></p>
           <button type="submit">產生答案</button>
@@ -144,7 +134,7 @@
           document.getElementById("q5-form").addEventListener("submit", function(event) {
             event.preventDefault();
             const formData = new FormData(this);
-            document.getElementById("status-text").innerText = "pending，正在將檔案上傳並啟動背景計算…";
+            document.getElementById("status-text").innerText = "pending，正在上傳並啟動背景計算…";
 
             fetch("", {
               method: "POST",
@@ -164,11 +154,11 @@
           });
 
           function pollStatus(jobId) {
-            document.getElementById("status-text").innerText = "pending，請稍候…";
             fetch(`/question/5/status/${jobId}`)
               .then(resp => resp.json())
               .then(json => {
                 if (json.status === "pending" || json.status === "running") {
+                  document.getElementById("status-text").innerText = json.status + "，請稍候…";
                   setTimeout(() => pollStatus(jobId), 3000);
                 } else if (json.status === "finished") {
                   location.reload();
@@ -183,8 +173,9 @@
               });
           }
         </script>
+
       {% else %}
-        <!-- (5-2) 已有 result：直接把第5題的結果顯示出來 -->
+        <!-- (5-2) 已有結果：直接把 result 顯示出來 -->
         {% for key, val in result.items() %}
           <div style="margin-bottom:1em;">
             <strong class="sub-question">{{ key }}</strong>
@@ -201,7 +192,6 @@
                     <tr>
                       <td>{{ k }}</td>
                       <td>
-                        {# 同樣做「字串 vs 浮點數」判斷 #}
                         {% set is_float = False %}
                         {% if v is number %}
                           {% set is_float = True %}
