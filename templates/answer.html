@@ -236,6 +236,33 @@
   {% endif %}
   {# ============= End of Q4 ============= #}
 
+  {#================ 第五題 (Q5) 顯示區 ================ #}
+
+{% if question.id == 5 %}
+  <h3 class="sub-question">圖表</h3>
+  <div class="plot-box">
+    {% for label, fn in result.plots.items() %}
+      <div class="plot-item">
+        <img src="{{ url_for('static', filename='results/' + fn) }}" width="600">
+        <p>{{ label }}</p>
+      </div>
+    {% endfor %}
+  </div>
+
+  <h3 class="sub-question">Part 1 結果（固定提款 50,000 元）</h3>
+  <p>最佳投資組合 (LCS/SCS/CB/USGB)：<strong>{{ result["Part1_best_portfolio"] }}</strong></p>
+  <p>此組合 2033 年底的平均剩餘：<strong>{{ "{:,.0f}".format(result["Part1_best_avg_remaining"]) }}</strong> 元</p>
+
+  <hr>
+
+  <h3 class="sub-question">Part 2 結果（找最大可提領 W*）</h3>
+  <p>最佳投資組合 (LCS/SCS/CB/USGB)：<strong>{{ result["Part2_best_portfolio"] }}</strong></p>
+  <p>此組合可提款最大 W* (2002 現值)：<strong>{{ "{:,.0f}".format(result["Part2_best_Wstar"]) }}</strong> 元</p>
+{% endif %}
+
+{# ============= End of Q5 ============= #}
+
+
 
   <p style="margin-top:2em;">
     <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
