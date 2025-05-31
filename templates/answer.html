@@ -2,30 +2,123 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
-  <title>第 {{ question.id }} 題：{{ question.title }} — 答案</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <title>第 {{ question.id }} 題：{{ question.title }} — 答案</title>
+  <style>
+    body {
+      font-family: "Microsoft JhengHei", Arial, sans-serif;
+      margin: 40px;
+      line-height: 1.6;
+    }
+    h2.question-title {
+      font-size: 22px;
+      margin-bottom: 20px;
+    }
+    .answer-box {
+      border: 1px solid #ddd;
+      padding: 20px;
+      border-radius: 4px;
+      background-color: #fafafa;
+    }
+    .sub-question {
+      font-size: 18px;
+      margin: 16px 0 8px;
+      display: block;
+    }
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    .result-table th,
+    .result-table td {
+      border: 1px solid #ccc;
+      padding: 6px 8px;
+      text-align: center;
+    }
+    .result-table th {
+      background-color: #f0f0f0;
+    }
+    .plot-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-top: 16px;
+    }
+    .plot-item {
+      flex: 1 1 500px;
+      text-align: center;
+    }
+    .plot-item img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .plot-item p {
+      margin-top: 6px;
+      font-size: 14px;
+      color: #333;
+    }
+    .upload-form {
+      margin-bottom: 16px;
+    }
+    .upload-form input[type="file"] {
+      margin-right: 8px;
+    }
+    .upload-form button {
+      padding: 6px 12px;
+      font-size: 14px;
+    }
+    .status-box {
+      margin: 16px 0;
+      padding: 12px;
+      border: 1px dashed #aaa;
+      background-color: #fff;
+    }
+    .links {
+      margin-top: 20px;
+    }
+    .links a {
+      color: #0066cc;
+      text-decoration: none;
+      margin-right: 12px;
+      font-size: 14px;
+    }
+    .links a:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
 <body>
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
-  {# ========== 第一到第四題的結果顯示區塊（保持原本） ========== #}
-  {% if question.id != 5 %}
-    <div class="answer-box">
-      {# Q1 Summary #}
-      {% if question.id == 1 %}
-        <h3 class="sub-question">摘要</h3>
-        <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
-        <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
-      {% endif %}
+  {# 上傳區塊（如果 result 為空，就顯示「上傳檔案 + 產生答案」按鈕） #}
+  {# 第1 ~ 第4 題及第5題 GET 都會走到這裡（result=None） #}
+  {% if result is none %}
+    <form class="upload-form" method="post" enctype="multipart/form-data">
+      <input type="file" name="file" required>
+      <button type="submit">產生答案</button>
+    </form>
+  {% endif %}
 
-      {# 其餘結果以表格顯示 #}
+  <div class="answer-box">
+    {# ====== 第1題：顯示「摘要」 ====== #}
+    {% if question.id == 1 and result %}
+      <h3 class="sub-question">摘要</h3>
+      <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
+      <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
+    {% endif %}
+
+    {# ====== 顯示同第1題以外（第1題除外已在上面顯示摘要），其餘結果以表格顯示 ====== #}
+    {% if result %}
       {% for key, val in result.items() if key != 'plots' %}
-        {% if question.id != 1 or (question.id == 1 and key not in [
-              "最佳分布（賠償金額）",
-              "分布參數（賠償金額）",
-              "最佳分布（賠款率）",
-              "分布參數（賠款率）"
-           ]) %}
+        {%- if not (question.id == 1 and key in [
+                  "最佳分布（賠償金額）",
+                  "分布參數（賠償金額）",
+                  "最佳分布（賠款率）",
+                  "分布參數（賠款率）"
+               ]) %}
           <div style="margin-bottom:1em;">
             <strong class="sub-question">{{ key }}</strong>
             {% if val is mapping %}
@@ -52,49 +145,79 @@
                 </tbody>
               </table>
             {% else %}
-              {{ val }}
+              <p>{{ val }}</p>
             {% endif %}
           </div>
-        {% endif %}
+        {%- endif %}
+      {% endfor %}
+    {% endif %}
+
+
+    {# ====== 第3題：專用圖表區塊 ====== #}
+    {% if question.id == 3 and result %}
+      <h3 class="sub-question">圖表</h3>
+      <div class="plot-box">
+        <div class="plot-item">
+          <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000">
+          <p>盈利圖（Profit vs. P 平均值）</p>
+        </div>
+        <div class="plot-item">
+          <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000">
+          <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
+        </div>
+        <div class="plot-item">
+          <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="1000">
+          <p>P(Profit&gt;100) 機率變化圖</p>
+        </div>
+      </div>
+
+    {# ====== 其它題目（第1、2、4、5）若有 plots 屬性，就使用通用迴圈 ====== #}
+    {% elif result and result.plots %}
+      <h3 class="sub-question">圖表</h3>
+      <div class="plot-box">
+        {% for label, fn in result.plots.items() %}
+          <div class="plot-item">
+            <img src="{{ url_for('static', filename='results/' + fn) }}" width="500">
+            <p>{{ label }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {# ====== 第5題：非同步輪詢狀態顯示區塊 ====== #}
+    {% if question.id == 5 and result is none %}
+      <div class="status-box">
+        工作狀態：pending，請繼續稍候...
+      </div>
+    {% elif question.id == 5 and result %}
+      {# 如果第5題已經完成 result，就正常顯示其內文、表格或圖表（由 run_full_simulation 傳回） #}
+      {% for key, val in result.items() if key != 'plots' %}
+        <div style="margin-bottom:1em;">
+          <strong class="sub-question">{{ key }}</strong>
+          {% if val is mapping %}
+            <table class="result-table">
+              <thead>
+                <tr>
+                  <th>參數</th>
+                  <th>數值</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for k, v in val.items() %}
+                  <tr>
+                    <td>{{ k }}</td>
+                    <td>{{ '{:.4f}'.format(v) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p>{{ val }}</p>
+          {% endif %}
+        </div>
       {% endfor %}
 
-      {# 第三題專用圖表(Question 3) #}
-      {% if question.id == 3 %}
-        <h3 class="sub-question">圖表</h3>
-        <div class="plot-box">
-          <div class="plot-item">
-            <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" width="1000">
-            <p>盈利圖（Profit vs. P 平均值）</p>
-          </div>
-          <div class="plot-item">
-            <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" width="1000">
-            <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
-          </div>
-          <div class="plot-item">
-            <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" width="1000">
-            <p>P(Profit&gt;100) 機率變化圖</p>
-          </div>
-        </div>
-      {# 第四題專用圖表(Question 4) #}
-      {% elif question.id == 4 and result.plots_trend %}
-        <h3 class="sub-question">Q1: Trend (股票權重 = 50%、70%、90%)</h3>
-        <div class="trend-images">
-          {% for w, fn in result.plots_trend.items() %}
-            <div class="trend-item">
-              <img src="{{ url_for('static', filename='results/' + fn) }}" alt="Trend w={{ (w*100)|int }}%" width="700">
-            </div>
-          {% endfor %}
-        </div>
-        <h3 class="sub-question">Q2: CDF (股票權重 = 50%、70%、90%)</h3>
-        <div class="cdf-images">
-          {% for w, fn in result.plots_cdf.items() %}
-            <div class="cdf-item">
-              <img src="{{ url_for('static', filename='results/' + fn) }}" alt="CDF w={{ (w*100)|int }}%" width="700">
-            </div>
-          {% endfor %}
-        </div>
-      {% elif result.plots %}
-        {# 第1、2 題或其他題目多張圖時，走原本的迴圈顯示方式 #}
+      {% if result.plots %}
         <h3 class="sub-question">圖表</h3>
         <div class="plot-box">
           {% for label, fn in result.plots.items() %}
@@ -105,210 +228,12 @@
           {% endfor %}
         </div>
       {% endif %}
+    {% endif %}
+
+    <div class="links">
+      <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
+      <a href="{{ url_for('index') }}">回首頁</a>
     </div>
-    <p><a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> | <a href="{{ url_for('index') }}">回首頁</a></p>
-  {% endif %}
-
-
-  {# ========== 第5題專屬顯示區塊 ========== #}
-  {% if question.id == 5 %}
-    <div class="answer-box">
-      {# 尚未開始、或正在執行 background job 時 #}
-      {% if result is none %}
-        <h3>上傳對應檔案：</h3>
-        <form id="q5-form" method="POST" enctype="multipart/form-data">
-          <input type="file" name="file" accept=".xls,.xlsx" required>
-          <button type="submit">產生答案</button>
-        </form>
-
-        <div id="status-area" style="margin-top: 1em; padding: 1em; border: 1px dashed #ccc;">
-          工作狀態：<span id="job-status">pending，請繼續稍候…</span>
-        </div>
-        <div id="error-area" style="color: red; margin-top: 0.5em;"></div>
-        {# 之後拿到結果會把「表格 + 圖表」插入到 #result-content 區域 #}
-        <div id="result-content"></div>
-
-      {% else %}
-        {# result 不是 None，表示背景已跑完，我們要把「result」裡面的內容渲染出來 #}
-        {# 假設 run_full_simulation 回傳的 result 包含： 
-             - "最佳組合(2033_剩餘平均)"：{ "LCS": 0.25, "SCS": 0.12, "CB": 0.0, "USGB": 0.63 }
-             - "最佳組合(2033_提款平均)"：{ "LCS": 0.23, "SCS": 0.10, "CB": 0.05, "USGB": 0.62 }
-             - "統計結果(2033_剩餘)": { "Mean": x.xx, "StdDev": y.yy, ... }
-             - "統計結果(2033_提款)": { "Mean": a.aa, "StdDev": b.bb, ... }
-             - "plots": {"Plot_Remain": "q5_remain_dist.png", "Plot_Withdraw": "q5_withdraw_dist.png"}
-        #}
-        <h3>第 5 題 計算結果：</h3>
-
-        <div style="margin-bottom: 1em;">
-          <strong>1. 2033 年可符合「剩餘金額最多 (平均)」的最佳投資組合：</strong>
-          <ul>
-            {% for asset, pct in result["最佳組合(2033_剩餘平均)"].items() %}
-              <li>{{ asset }}：{{ (pct*100)|int }} %</li>
-            {% endfor %}
-          </ul>
-          <strong>2033 年剩餘資金統計 (平均 / 標準差 / 中位數)：</strong>
-          <ul>
-            {% for k,v in result["統計結果(2033_剩餘)"].items() %}
-              <li>{{ k }}：{{ '{:.2f}'.format(v) }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-
-        <div style="margin-bottom: 1em;">
-          <strong>2. 2033 年可符合「每年提款最多 (平均)」的最佳投資組合：</strong>
-          <ul>
-            {% for asset, pct in result["最佳組合(2033_提款平均)"].items() %}
-              <li>{{ asset }}：{{ (pct*100)|int }} %</li>
-            {% endfor %}
-          </ul>
-          <strong>2033 年平均可提款統計 (平均 / 標準差 / 中位數)：</strong>
-          <ul>
-            {% for k,v in result["統計結果(2033_提款)"].items() %}
-              <li>{{ k }}：{{ '{:.2f}'.format(v) }}</li>
-            {% endfor %}
-          </ul>
-        </div>
-
-        <div class="plot-box" style="margin-top: 2em;">
-          <div class="plot-item">
-            <img src="{{ url_for('static', filename='results/' + result['plots']['Plot_Remain']) }}" width="600">
-            <p>2033 年剩餘資金分布圖</p>
-          </div>
-          <div class="plot-item">
-            <img src="{{ url_for('static', filename='results/' + result['plots']['Plot_Withdraw']) }}" width="600">
-            <p>2033 年提款分布圖</p>
-          </div>
-        </div>
-      {% endif %}
-    </div>
-
-    <p><a href="{{ url_for('question', qid=5) }}">重新產生答案</a> | <a href="{{ url_for('index') }}">回首頁</a></p>
-
-    {# --------- JavaScript：負責送出表單、取得 job_id，並開始輪詢 --------- #}
-    <script>
-      // 只在 result is none (也就是「尚未有結果」) 的時候，才要掛上下面這些事件處理
-      document.addEventListener("DOMContentLoaded", function() {
-        const q5Form = document.getElementById("q5-form");
-        if (!q5Form) return;
-
-        q5Form.addEventListener("submit", function(e) {
-          e.preventDefault();
-
-          const fileInput = q5Form.querySelector("input[type=file]");
-          if (!fileInput.files.length) {
-            alert("請先選擇檔案！");
-            return;
-          }
-
-          const formData = new FormData();
-          formData.append("file", fileInput.files[0]);
-
-          // 按下「產生答案」之後，先把按鈕 disable，改成 Pending
-          q5Form.querySelector("button").disabled = true;
-          q5Form.querySelector("button").innerText = "正在排程中…";
-
-          // 1) 先送 POST /question/5 拿 job_id
-          fetch("/question/5", {
-            method: "POST",
-            body: formData
-          })
-          .then(resp => {
-            if (resp.status !== 202) {
-              throw new Error("伺服器拒絕請求，請檢查檔案是否格式正確。");
-            }
-            return resp.json();
-          })
-          .then(json => {
-            const jobId = json.job_id;
-            document.getElementById("job-status").innerText = "pending，請繼續稍候…";
-
-            // 2) 每 3 秒詢問一次 /question/5/status/<job_id>
-            const pollInterval = setInterval(() => {
-              fetch(`/question/5/status/${jobId}`)
-                .then(resp => resp.json())
-                .then(statusJson => {
-                  const st = statusJson.status;
-                  document.getElementById("job-status").innerText = st;
-
-                  if (st === "finished") {
-                    clearInterval(pollInterval);
-                    // 3) 取得最終 result，並把畫面替換成「真正的結果呈現」
-                    const resultData = statusJson.result;
-                    renderQ5Result(resultData);
-                  }
-                  if (st === "error") {
-                    clearInterval(pollInterval);
-                    document.getElementById("error-area").innerText = "計算發生錯誤：" + statusJson.error;
-                  }
-                })
-                .catch(err => {
-                  clearInterval(pollInterval);
-                  document.getElementById("error-area").innerText = "輪詢時發生錯誤：" + err;
-                });
-            }, 3000);
-          })
-          .catch(err => {
-            document.getElementById("error-area").innerText = "伺服器回應失敗：" + err;
-          });
-        }); // end of form submit
-
-        // 4) 將後端跑完的 result，動態產生 HTML 放到 #result-content
-        function renderQ5Result(r) {
-          const container = document.getElementById("result-content");
-          container.innerHTML = "";  // 清空之前的排版
-
-          // (1) 最佳組合(2033_剩餘平均)
-          let html = `<h3>第 5 題 計算結果：</h3>`;
-          html += `<div style="margin-bottom:1em;">`;
-          html += `<strong>1. 2033 年可符合「剩餘金額最多 (平均)」的最佳投資組合：</strong>`;
-          html += `<ul>`;
-          for (let asset in r["最佳組合(2033_剩餘平均)"]) {
-            const pct = r["最佳組合(2033_剩餘平均)"][asset];
-            html += `<li>${asset}：${Math.round(pct*100)} %</li>`;
-          }
-          html += `</ul>`;
-          html += `<strong>2033 年剩餘資金統計 (平均 / 標準差 / 中位數)：</strong>`;
-          html += `<ul>`;
-          for (let k in r["統計結果(2033_剩餘)"]) {
-            const v = r["統計結果(2033_剩餘)"][k];
-            html += `<li>${k}：${v.toFixed(2)}</li>`;
-          }
-          html += `</ul>`;
-          html += `</div>`;
-
-          // (2) 最佳組合(2033_提款平均)
-          html += `<div style="margin-bottom:1em;">`;
-          html += `<strong>2. 2033 年可符合「每年提款最多 (平均)」的最佳投資組合：</strong>`;
-          html += `<ul>`;
-          for (let asset in r["最佳組合(2033_提款平均)"]) {
-            const pct = r["最佳組合(2033_提款平均)"][asset];
-            html += `<li>${asset}：${Math.round(pct*100)} %</li>`;
-          }
-          html += `</ul>`;
-          html += `<strong>2033 年平均可提款統計 (平均 / 標準差 / 中位數)：</strong>`;
-          html += `<ul>`;
-          for (let k in r["統計結果(2033_提款)"]) {
-            const v = r["統計結果(2033_提款)"][k];
-            html += `<li>${k}：${v.toFixed(2)}</li>`;
-          }
-          html += `</ul>`;
-          html += `</div>`;
-
-          // (3) 兩張圖表：2033 年剩餘分布圖 & 2033 年提款分布圖
-          html += `<div class="plot-box" style="margin-top:2em;">`;
-          html += `  <div class="plot-item">`;
-          html += `    <img src="/static/results/${r["plots"]["Plot_Remain"]}" width="600">`;
-          html += `    <p>2033 年剩餘資金分布圖</p>`;
-          html += `  </div>`;
-          html += `  <div class="plot-item">`;
-          html += `    <img src="/static/results/${r["plots"]["Plot_Withdraw"]}" width="600">`;
-          html += `    <p>2033 年提款分布圖</p>`;
-          html += `  </div>`;
-          html += `</div>`;
-
-          container.innerHTML = html;
-        }
-      </script>
-  {% endif %}
+  </div>
 </body>
 </html>
