@@ -120,18 +120,53 @@
         </p>
       {% endif %}
 
-      {# ========= 針對 result 中的其他 key 進行逐項顯示 ========= #}
+      {# ========= 第 3 題：專屬「Q3 圖表」顯示 ========= #}
+      {% if question.id == 3 %}
+        <h3 class="sub-question">圖表</h3>
+        <div class="plot-box">
+          <div class="plot-item">
+            <img src="{{ url_for('static', filename='results/' + result['盈利圖檔案']) }}" alt="盈利圖">
+            <p>盈利圖（Profit vs. P 平均值）</p>
+          </div>
+          <div class="plot-item">
+            <img src="{{ url_for('static', filename='results/' + result['靈敏度圖檔案']) }}" alt="靈敏度圖">
+            <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
+          </div>
+          <div class="plot-item">
+            <img src="{{ url_for('static', filename='results/' + result['機率變化圖檔案']) }}" alt="機率變化圖">
+            <p>P(Profit&gt;100) 機率變化圖</p>
+          </div>
+        </div>
+        <div class="chart-desc">
+          <strong>X 軸：</strong>P 的平均值<br>
+          <strong>Y 軸：</strong>對應的預期盈利或標準差<br>
+          <strong>說明：</strong>第一張「盈利圖」顯示在不同 P 平均值下的預期盈利。  
+          第二張「靈敏度分析圖」在不同 P 平均值下，盈利的標準差如何變化。  
+          第三張「P(Profit&gt;100) 機率變化圖」顯示盈利超過 100 的機率隨 P 平均值的走勢。
+        </div>
+      {% endif %}
+
+      {# ========= 通用：呈現其他結果 (包含第 2 題的參數表格等) ========= #}
       {% for key, val in result.items() %}
+        {# 跳過已由上面專屬顯示過的第 1 題文字、第 3 題圖表 #}
         {% if question.id == 1 and (
               key == "最佳分布（賠償金額）" or
               key == "分布參數（賠償金額）" or
               key == "最佳分布（賠款率）" or
               key == "分布參數（賠款率）"
             ) %}
-          {# 第 1 題已經顯示過，跳過 #}
+          {# 已顯示完畢，略過 #}
+
+        {% elif question.id == 3 and (
+              key == "盈利圖檔案" or
+              key == "靈敏度圖檔案" or
+              key == "機率變化圖檔案"
+            ) %}
+          {# 已顯示完畢，略過 #}
+
         {% else %}
-          {% if 'plots' in key %}
-            {# ========= 第 4 題的趨勢／CDF 貼圖及中文說明 ========= #}
+          {% if 'plots' in key and question.id == 4 %}
+            {# ========= 第 4 題：專屬「Trend / CDF 圖表 + 中文說明」 ========= #}
             {% if key == 'plots_trend' %}
               <h3 class="sub-question">Q1: Trend 圖表 (股票權重 = 50%、70%、90%)</h3>
               <div class="plot-box">
@@ -171,7 +206,7 @@
             {% endif %}
 
           {% else %}
-            {# 非圖表，就顯示為「參數表格」或「純文字」 #}
+            {# ========= 其他題目（第 2 題、或第 1、3 題未特別處理的參數）以表格顯示 ========= #}
             <div style="margin-bottom: 16px;">
               <strong class="sub-question">{{ key }}</strong>
               {% if val is mapping %}
@@ -206,7 +241,6 @@
       {% endfor %}
     {% endif %}
   </div>
-
 
   <div class="footer-links">
     <a href="{{ url_for('index') }}">回首頁</a>
