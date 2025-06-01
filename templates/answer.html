@@ -4,189 +4,216 @@
   <meta charset="utf-8">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <title>第 {{ question.id }} 題：{{ question.title }} — 答案</title>
+  <style>
+    body {
+      font-family: Arial, "Microsoft JhengHei", sans-serif;
+      margin: 20px;
+      line-height: 1.6;
+      color: #333;
+    }
+    .question-title {
+      margin-bottom: 20px;
+      font-size: 1.4em;
+    }
+    .answer-box {
+      border: 1px solid #ccc;
+      padding: 20px;
+      border-radius: 8px;
+      background-color: #f9f9f9;
+    }
+    .sub-question {
+      margin-top: 20px;
+      margin-bottom: 10px;
+      font-size: 1.1em;
+      font-weight: bold;
+      color: #555;
+    }
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 16px;
+    }
+    .result-table th,
+    .result-table td {
+      border: 1px solid #888;
+      padding: 6px 8px;
+      text-align: center;
+      background-color: #fff;
+    }
+    .plot-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 10px;
+    }
+    .plot-item {
+      flex: 1 1 300px;
+      text-align: center;
+      background-color: #fff;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .plot-item img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #aaa;
+      border-radius: 4px;
+    }
+    .plot-item p {
+      margin-top: 6px;
+      font-size: 0.95em;
+      color: #555;
+    }
+    form p {
+      margin-bottom: 10px;
+    }
+    form button {
+      padding: 6px 14px;
+      font-size: 1em;
+    }
+    .footer-links {
+      margin-top: 20px;
+    }
+    .footer-links a {
+      margin-right: 16px;
+      color: #0066cc;
+      text-decoration: none;
+    }
+    /* 圖表下面的說明 */
+    .chart-desc {
+      margin-top: 6px;
+      font-size: 0.95em;
+      color: #555;
+      text-align: left;
+      line-height: 1.4;
+    }
+    .chart-desc strong {
+      color: #333;
+    }
+  </style>
 </head>
 <body>
+
   <h2 class="question-title">第 {{ question.id }} 題：{{ question.title }} — 答案</h2>
 
   <div class="answer-box">
+    {# 如果 result 為空，顯示上傳檔案表單 #}
+    {% if not result %}
+      <form method="post" enctype="multipart/form-data">
+        <p>請上傳第 {{ question.id }} 題所需檔案：</p>
+        <p><input type="file" name="file" required></p>
+        <button type="submit">產生答案</button>
+      </form>
 
-    {# ============================================ #}
-    {#   第一題的顯示（不修改）                    #}
-    {# ============================================ #}
-    {% if question.id == 1 %}
-      <h3>摘要</h3>
-      <p>賠償金額最佳分布：{{ result["最佳分布（賠償金額）"] }}，參數：{{ result["分布參數（賠償金額）"] }}</p>
-      <p>賠款率最佳分布：{{ result["最佳分布（賠款率）"] }}，參數：{{ result["分布參數（賠款率）"] }}</p>
-      <h3>參數列表</h3>
-      <table class="result-table">
-        <thead>
-          <tr>
-            <th>參數</th>
-            <th>數值</th>
-          </tr>
-        </thead>
-        <tbody>
-          {# 假設 result 其他欄位都是 mapping 型態 #}
-          {% for key, val in result.items() if key not in [
-                "最佳分布（賠償金額）",
-                "分布參數（賠償金額）",
-                "最佳分布（賠款率）",
-                "分布參數（賠款率）"
-            ] %}
-            {% if val is mapping %}
-              {% for k, v in val.items() %}
-                <tr>
-                  <td>{{ k }}</td>
-                  <td>{{ "{:.4f}".format(v) }}</td>
-                </tr>
-              {% endfor %}
-            {% else %}
-              <tr>
-                <td>{{ key }}</td>
-                <td>{{ val }}</td>
-              </tr>
-            {% endif %}
-          {% endfor %}
-        </tbody>
-      </table>
-
-      {# 假設第一題也有圖表 #}
-      {% if result.plots %}
-        <h3>圖表</h3>
-        <div class="plot-box">
-          {% for label, fn in result.plots.items() %}
-            <div class="plot-item">
-              <img src="{{ url_for('static', filename='results/' ~ fn) }}" width="500">
-              <p>{{ label }}</p>
-            </div>
-          {% endfor %}
-        </div>
+    {% else %}
+      {# ========= 第 1 題：專屬「摘要」顯示 ========= #}
+      {% if question.id == 1 %}
+        <h3 class="sub-question">摘要</h3>
+        <p>
+          賠償金額最佳分布：<strong>{{ result["最佳分布（賠償金額）"] }}</strong>，  
+          參數：<strong>{{ result["分布參數（賠償金額）"] }}</strong>
+        </p>
+        <p>
+          賠款率最佳分布：<strong>{{ result["最佳分布（賠款率）"] }}</strong>，  
+          參數：<strong>{{ result["分布參數（賠款率）"] }}</strong>
+        </p>
       {% endif %}
-    {% endif %}
 
-
-    {# ============================================ #}
-    {#   第二題的顯示（不修改）                    #}
-    {# ============================================ #}
-    {% if question.id == 2 %}
-      {# 同第一題邏輯，只改鍵名稱即可 #}
+      {# ========= 針對 result 中的其他 key 進行逐項顯示 ========= #}
       {% for key, val in result.items() %}
-        <div style="margin-bottom:1em;">
-          <strong class="sub-question">{{ key }}</strong><br>
-          {% if val is mapping %}
-            <table class="result-table">
-              <thead>
-                <tr>
-                  <th>參數</th>
-                  <th>數值</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for k, v in val.items() %}
-                  <tr>
-                    <td>{{ k }}</td>
-                    <td>{{ "{:.4f}".format(v) }}</td>
-                  </tr>
+        {% if question.id == 1 and (
+              key == "最佳分布（賠償金額）" or
+              key == "分布參數（賠償金額）" or
+              key == "最佳分布（賠款率）" or
+              key == "分布參數（賠款率）"
+            ) %}
+          {# 第 1 題已經顯示過，跳過 #}
+        {% else %}
+          {% if 'plots' in key %}
+            {# ========= 第 4 題的趨勢／CDF 貼圖及中文說明 ========= #}
+            {% if key == 'plots_trend' %}
+              <h3 class="sub-question">Q1: Trend 圖表 (股票權重 = 50%、70%、90%)</h3>
+              <div class="plot-box">
+                {% for w, fn in val.items() %}
+                  <div class="plot-item">
+                    <img src="{{ url_for('static', filename='results/' + fn) }}" alt="{{ fn }}">
+                    <p>股票權重 = {{ (w * 100)|int }}%</p>
+                  </div>
                 {% endfor %}
-              </tbody>
-            </table>
+              </div>
+              <div class="chart-desc">
+                <strong>X 軸：</strong>年齡 (30 → 60 歲)<br>
+                <strong>Y 軸：</strong>平均累積價值 (含每年投資 10,000 元，已考慮 2.2% 通膨)<br>
+                <strong>說明：</strong>圖中淺藍色細線代表每一次的 100,000 次蒙地卡羅模擬路徑（各別路徑），  
+                紅色粗線代表這 100,000 次模擬後的平均累積趨勢。<br>
+                三張子圖分別為股票權重 50%、70%、90% 時的模擬結果，  
+                權重越高，潛在平均累積值越高，但波動幅度（淺藍色範圍）也越廣。
+              </div>
+
+            {% elif key == 'plots_cdf' %}
+              <h3 class="sub-question">Q2: CDF 圖表 (股票權重 = 50%、70%、90%)</h3>
+              <div class="plot-box">
+                {% for w, fn in val.items() %}
+                  <div class="plot-item">
+                    <img src="{{ url_for('static', filename='results/' + fn) }}" alt="{{ fn }}">
+                    <p>股票權重 = {{ (w * 100)|int }}%</p>
+                  </div>
+                {% endfor %}
+              </div>
+              <div class="chart-desc">
+                <strong>X 軸：</strong>60 歲時的最終累積價值<br>
+                <strong>Y 軸：</strong>累積機率 (Cumulative Probability)<br>
+                <strong>說明：</strong>CDF (累積分布函數) 顯示在 100,000 次模擬結果中，  
+                不同最終累積價值以下的機率。三張子圖分別為股票權重 50%、70%、90% 時的分布，  
+                權重越高，分布曲線越右移，代表較高的最終累積值機率越大。
+              </div>
+            {% endif %}
+
           {% else %}
-            {{ val }}
-          {% endif %}
-        </div>
-      {% endfor %}
-      
-      {% if result.plots %}
-        <h3>圖表</h3>
-        <div class="plot-box">
-          {% for label, fn in result.plots.items() %}
-            <div class="plot-item">
-              <img src="{{ url_for('static', filename='results/' ~ fn) }}" width="500">
-              <p>{{ label }}</p>
+            {# 非圖表，就顯示為「參數表格」或「純文字」 #}
+            <div style="margin-bottom: 16px;">
+              <strong class="sub-question">{{ key }}</strong>
+              {% if val is mapping %}
+                <table class="result-table">
+                  <thead>
+                    <tr>
+                      <th>參數</th>
+                      <th>數值{% if '率' in key %}（%）{% endif %}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for k2, v2 in val.items() %}
+                      <tr>
+                        <td>{{ k2 }}</td>
+                        <td>
+                          {% if v2 is number %}
+                            {{ '%.4f'|format(v2) }}{% if '率' in key %} %{% endif %}
+                          {% else %}
+                            {{ v2 }}
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                <p>{{ val }}</p>
+              {% endif %}
             </div>
-          {% endfor %}
-        </div>
-      {% endif %}
+          {% endif %}
+        {% endif %}
+      {% endfor %}
     {% endif %}
+  </div>
 
 
-    {# ============================================ #}
-    {#   第三題的顯示（不修改）                    #}
-    {# ============================================ #}
-    {% if question.id == 3 %}
-      {# 假設第三題 result 物件有 "盈利圖檔案"、"靈敏度圖檔案"、"機率變化圖檔案" 這三個鍵 #}
-      <h3>圖表</h3>
-      <div class="plot-box">
-        <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' ~ result['盈利圖檔案']) }}" width="1000">
-          <p>盈利圖（Profit vs. P 平均值）</p>
-        </div>
-        <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' ~ result['靈敏度圖檔案']) }}" width="1000">
-          <p>靈敏度分析圖（Profit 標準差 vs. P 平均值）</p>
-        </div>
-        <div class="plot-item">
-          <img src="{{ url_for('static', filename='results/' ~ result['機率變化圖檔案']) }}" width="1000">
-          <p>P(Profit&gt;100) 機率變化圖</p>
-        </div>
-      </div>
-    {% endif %}
-
-
-    {# ============================================ #}
-    {#   第四題的顯示（重點區域：完整趨勢圖 + 說明） #}
-    {# ============================================ #}
-    {% if question.id == 4 and result %}
-      <h3>Q1: Trend 圖表（股票權重 = 50%、70%、90%）</h3>
-      <div class="trend-container" style="display:flex; flex-wrap:wrap; gap:20px;">
-        {% for w, fn in result.plots_trend.items() %}
-          <div class="trend-item" style="flex:1 1 32%; text-align:center;">
-            <img src="{{ url_for('static', filename='results/' ~ fn) }}" style="max-width:100%; height:auto;">
-            <p>股票權重 = {{ (w*100)|int }}%</p>
-            <p style="text-align:left; margin-top:8px;">
-              <strong>X 軸：</strong>年齡（30 → 60 歲）<br>
-              <strong>Y 軸：</strong>累積價值（含每年投入 10,000 元、2.2% 通膨）<br>
-              <strong>說明：</strong>
-              <span style="color:red;">紅色粗線</span> 為 {{ (w*100)|int }}% 權重下，
-              共 100,000 次模擬路徑的 <u>平均累積趨勢</u>；<br>
-              <span style="color:skyblue;">淺藍色細線</span> 為各次模擬路徑（隨機路徑）的真實軌跡。
-            </p>
-          </div>
-        {% endfor %}
-      </div>
-
-      <h3 style="margin-top:40px;">Q2: CDF 圖表（股票權重 = 50%、70%、90%）</h3>
-      <div class="cdf-container" style="display:flex; flex-wrap:wrap; gap:20px;">
-        {% for w, fn in result.plots_cdf.items() %}
-          <div class="cdf-item" style="flex:1 1 32%; text-align:center;">
-            <img src="{{ url_for('static', filename='results/' ~ fn) }}" style="max-width:100%; height:auto;">
-            <p>股票權重 = {{ (w*100)|int }}%</p>
-            <p style="text-align:left; margin-top:8px;">
-              <strong>X 軸：</strong>最終累積值（60 歲累積總額）<br>
-              <strong>Y 軸：</strong>累積機率<br>
-              <strong>說明：</strong>此圖顯示 {{ (w*100)|int }}% 權重下，
-              共 100,000 次模擬完成後，60 歲時各個「最終累積值」所對應的
-              <u>累積機率分布</u> (Cumulative Distribution Function)。
-            </p>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-
-
-    {# ============================================ #}
-    {#   其他題目（第 5 題或以後，如果有，都放在下面；這邊示範放空） #}
-    {# ============================================ #}
-    {% if question.id >= 5 %}
-      {# 您未來可以自己再擴充 #}
-      <p>第 {{ question.id }} 題目前尚未實作或另行顯示。</p>
-    {% endif %}
-
-  </div>  {# end .answer-box #}
-
-  <p style="margin-top:30px;">
-    <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a> |
+  <div class="footer-links">
     <a href="{{ url_for('index') }}">回首頁</a>
-  </p>
+    {% if result %}
+      <a href="{{ url_for('question', qid=question.id) }}">重新產生答案</a>
+    {% endif %}
+  </div>
+
 </body>
 </html>
