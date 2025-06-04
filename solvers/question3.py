@@ -13,7 +13,7 @@ matplotlib.rcParams['axes.unicode_minus'] = False
 def solve(_):
     S, V = 10.0, 0.6
     SD_const = 10.0
-    mean_values = [45, 55]
+    mean_values = [50, 55]
     N = 100_000
 
     # 1) 計算 Profit 和靈敏度
@@ -56,10 +56,10 @@ def solve(_):
         f"收益標準差固定為 {sensitivity[mean_values[0]]:.1f}。"
     )
 
-    # 2) P_mean=50, SD=8,10,12 → P(Profit>100) 機率
+    # 2) P_mean=50, SD=10,12 → P(Profit>100) 機率
     P_mean_fixed = 50.0
     prob_gt100 = {}
-    for sd in [8, 10, 12]:
+    for sd in [10, 12]:
         sim = norm.rvs(loc=P_mean_fixed, scale=sd, size=N)
         prof = S * V * sim
         prob_gt100[sd] = float((prof > 100).mean())
